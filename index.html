@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FluxPlanner-Pro — Campaign Budget Planner</title>
+  <meta name="description" content="Plan your ad campaign budget across platforms like TikTok, Instagram, YouTube and Facebook. Get smart country-aware splits, asset-type weighting, and export to Excel, CSV or Google Drive." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Google API for Drive export (loaded on demand) -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="40" height="40" rx="12" fill="url(#logoGrad)"/>
+              <path d="M10 28L20 12L30 28" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="20" cy="12" r="2.5" fill="white"/>
+              <defs>
+                <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6C63FF"/>
+                  <stop offset="1" stop-color="#FF6584"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div>
+            <div class="logo-name">FluxPlanner-Pro</div>
+            <div class="logo-tagline">Campaign Budget Planner</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div id="gdriveUser" class="gdrive-user hidden"></div>
+          <button id="gdriveLoginBtn" class="btn btn-ghost btn-sm" onclick="openGDriveModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
+            Google Drive
+          </button>
+        </div>
+      </div>
+
+      <!-- Steps Nav -->
+      <div class="steps-nav">
+        <button class="step-btn active" data-step="1" onclick="goToStep(1)">
+          <span class="step-num">1</span>
+          <span class="step-label">Campaign Setup</span>
+        </button>
+        <div class="step-connector"></div>
+        <button class="step-btn" data-step="2" onclick="goToStep(2)">
+          <span class="step-num">2</span>
+          <span class="step-label">Activations</span>
+        </button>
+        <div class="step-connector"></div>
+        <button class="step-btn" data-step="3" onclick="goToStep(3)">
+          <span class="step-num">3</span>
+          <span class="step-label">Platform Splits</span>
+        </button>
+        <div class="step-connector"></div>
+        <button class="step-btn" data-step="4" onclick="goToStep(4)">
+          <span class="step-num">4</span>
+          <span class="step-label">Budget Plan</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- STEP 1: Campaign Setup -->
+      <section class="step-panel active" id="step1">
+        <div class="panel-header">
+          <h1 class="panel-title">Campaign Setup</h1>
+          <p class="panel-subtitle">Define your campaign basics, budget, and exchange rate</p>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="campaignName">Campaign Name</label>
+            <input type="text" id="campaignName" placeholder="e.g. IBUCAP Season 1 Reboost" />
+          </div>
+
+          <div class="form-group">
+            <label for="campaignCountry">Target Country</label>
+            <select id="campaignCountry" onchange="onCountryChange()">
+              <option value="">Select country...</option>
+              <option value="NG">🇳🇬 Nigeria</option>
+              <option value="ZA">🇿🇦 South Africa</option>
+              <option value="KE">🇰🇪 Kenya</option>
+              <option value="GH">🇬🇭 Ghana</option>
+              <option value="AO">🇦🇴 Angola</option>
+              <option value="ZM">🇿🇲 Zambia</option>
+              <option value="GB">🇬🇧 United Kingdom</option>
+              <option value="US">🇺🇸 United States</option>
+              <option value="CUSTOM">🌍 Other / Custom</option>
+            </select>
+          </div>
+
+          <!-- TikTok warning banner -->
+          <div id="tiktokWarning" class="tiktok-warning hidden">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 19h20L12 2z" stroke="#FF9F0A" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" stroke="#FF9F0A" stroke-width="2"/><circle cx="12" cy="16.5" r="0.5" fill="#FF9F0A" stroke="#FF9F0A"/></svg>
+            <span id="tiktokWarningText"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="totalBudget">Total Budget (USD $)</label>
+            <div class="input-prefix">
+              <span>$</span>
+              <input type="number" id="totalBudget" placeholder="2000" min="1" step="0.01" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="exchangeRate">
+              Exchange Rate
+              <span class="label-hint">USD → ZAR (e.g. 18.5 means $1 = R18.50)</span>
+            </label>
+            <div class="input-prefix">
+              <span>R</span>
+              <input type="number" id="exchangeRate" placeholder="18.5" min="0.01" step="0.01" value="18.5" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="campaignObjective">Default Ad Objective</label>
+            <select id="campaignObjective">
+              <option value="Video Views">Video Views</option>
+              <option value="Reach">Reach</option>
+              <option value="Brand Awareness">Brand Awareness</option>
+              <option value="Conversions">Conversions</option>
+              <option value="Traffic">Traffic</option>
+              <option value="Engagement">Engagement</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <div></div>
+          <button class="btn btn-primary" onclick="validateAndGoStep(2)">
+            Next: Activations
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 2: Activations -->
+      <section class="step-panel" id="step2">
+        <div class="panel-header">
+          <h2 class="panel-title">Activations / Posts</h2>
+          <p class="panel-subtitle">Add each post or campaign phase. Budget will be weighted by asset type.</p>
+        </div>
+
+        <div class="asset-weight-legend">
+          <span class="legend-title">Asset Budget Weights:</span>
+          <span class="weight-badge video">🎬 Video = 1.0×</span>
+          <span class="weight-badge animated">✨ Animated Static = 0.65×</span>
+          <span class="weight-badge static">🖼 Static = 0.45×</span>
+        </div>
+
+        <div id="activationsList" class="activations-list"></div>
+
+        <button class="btn btn-outline add-activation-btn" onclick="addActivation()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Add Activation
+        </button>
+
+        <div class="step-footer">
+          <button class="btn btn-ghost" onclick="goToStep(1)">← Back</button>
+          <button class="btn btn-primary" onclick="validateAndGoStep(3)">
+            Next: Platform Splits
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 3: Platform Splits -->
+      <section class="step-panel" id="step3">
+        <div class="panel-header">
+          <h2 class="panel-title">Platform Budget Splits</h2>
+          <p class="panel-subtitle">Recommended splits are based on <span id="splitCountryLabel">your selected country</span>'s social media habits. Override as needed.</p>
+        </div>
+
+        <div id="platformSplitEditor" class="platform-split-editor"></div>
+
+        <div class="split-total-row">
+          <span>Total Allocation:</span>
+          <span id="splitTotal" class="split-total-value">0%</span>
+          <span id="splitTotalUSD" class="split-total-usd"></span>
+        </div>
+        <div id="splitWarning" class="split-warning hidden">⚠️ Allocations must add up to 100%</div>
+
+        <div class="step-footer">
+          <button class="btn btn-ghost" onclick="goToStep(2)">← Back</button>
+          <button class="btn btn-primary" onclick="validateAndGoStep(4)">
+            Generate Budget Plan
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 4: Generated Budget Plan -->
+      <section class="step-panel" id="step4">
+        <div class="panel-header">
+          <h2 class="panel-title" id="planTitle">Budget Plan</h2>
+          <p class="panel-subtitle">Your full campaign budget breakdown. Edit actual spend to track performance.</p>
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="export-bar">
+          <span class="export-label">Export:</span>
+          <button class="btn btn-export excel" onclick="exportExcel()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2"/></svg>
+            Excel (.xlsx)
+          </button>
+          <button class="btn btn-export csv" onclick="exportCSV()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2"/><polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/><line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="2"/><line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="2"/></svg>
+            CSV
+          </button>
+          <button class="btn btn-export gdrive" onclick="exportToGDrive()">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
+            Save to Google Drive
+          </button>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards" id="summaryCards"></div>
+
+        <!-- Budget Table -->
+        <div class="table-wrapper">
+          <table class="budget-table" id="budgetTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Activation</th>
+                <th>Asset</th>
+                <th>Platform</th>
+                <th>Country</th>
+                <th>ZAR Value</th>
+                <th>Duration</th>
+                <th>Objective</th>
+                <th>Complete</th>
+                <th>Actual Spend</th>
+                <th>Difference</th>
+                <th>Budget</th>
+              </tr>
+            </thead>
+            <tbody id="budgetTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="step-footer">
+          <button class="btn btn-ghost" onclick="goToStep(3)">← Edit Splits</button>
+          <button class="btn btn-outline" onclick="goToStep(1)">🔄 Start New Plan</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Google Drive Modal -->
+  <div id="gdriveModal" class="modal-overlay hidden" onclick="closeGDriveModal(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeGDriveModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+
+      <div class="modal-header">
+        <div class="modal-icon gdrive-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24"><path fill="#34D399" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
+        </div>
+        <div>
+          <h3 class="modal-title">Save to Google Sheets</h3>
+          <p class="modal-subtitle">Choose your preferred method</p>
+        </div>
+      </div>
+
+      <!-- Option 1: Quick method -->
+      <div class="modal-option" id="quickImportOption">
+        <div class="modal-option-header">
+          <span class="option-badge recommended">⚡ Quickest — works right now</span>
+        </div>
+        <h4 class="option-title">Download CSV → Open in Google Sheets</h4>
+        <p class="option-desc">Downloads your budget plan as a CSV and opens a blank Google Sheet. In Sheets, go to <strong>File → Import → Upload</strong> and select the downloaded file. Takes about 10 seconds.</p>
+        <div class="option-steps">
+          <div class="opt-step"><span class="opt-step-num">1</span> Click the button below — CSV downloads automatically</div>
+          <div class="opt-step"><span class="opt-step-num">2</span> Google Sheets opens in a new tab</div>
+          <div class="opt-step"><span class="opt-step-num">3</span> In Sheets: <strong>File → Import → Upload</strong> → select the CSV</div>
+        </div>
+        <button class="btn btn-primary modal-action-btn" onclick="quickGSheetsExport()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Download CSV &amp; Open Google Sheets
+        </button>
+      </div>
+
+      <div class="modal-divider"><span>or</span></div>
+
+      <!-- Option 2: Full OAuth -->
+      <div class="modal-option">
+        <div class="modal-option-header">
+          <span class="option-badge setup-required">🔧 Requires one-time setup</span>
+        </div>
+        <h4 class="option-title">Direct Google Drive Upload (OAuth)</h4>
+        <p class="option-desc">Saves directly to your Drive as a Google Sheet. Requires setting up a Google Cloud project with your domain. Best if you host this app online.</p>
+        <div class="oauth-setup">
+          <div class="oauth-field">
+            <label>Google OAuth Client ID</label>
+            <input type="text" id="oauthClientId" placeholder="Paste your Client ID here..." />
+          </div>
+          <div class="oauth-field">
+            <label>Google API Key</label>
+            <input type="text" id="oauthApiKey" placeholder="Paste your API Key here..." />
+          </div>
+          <button class="btn btn-outline" style="width:100%;justify-content:center;margin-top:8px" onclick="connectGDriveOAuth()">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Sign in with Google
+          </button>
+          <a href="https://console.cloud.google.com" target="_blank" class="setup-link">→ How to get a Client ID from Google Cloud Console</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="budget-engine.js"></script>
+  <script src="export.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
