@@ -131,14 +131,40 @@ function quickGSheetsExport() {
 let gapiReady = false;
 let tokenClient = null;
 let accessToken = null;
-let oauthClientId = '';
-let oauthApiKey = '';
+// Load saved credentials from localStorage (persists across page refreshes)
+let oauthClientId = localStorage.getItem('fpro_client_id') || '';
+let oauthApiKey   = localStorage.getItem('fpro_api_key')   || '';
+
+// Helper: save credentials to localStorage
+function saveCredentials(clientId, apiKey) {
+  if (clientId) { oauthClientId = clientId; localStorage.setItem('fpro_client_id', clientId); }
+  if (apiKey)   { oauthApiKey   = apiKey;   localStorage.setItem('fpro_api_key',   apiKey);   }
+}
 
 // Expose accessToken globally so plans.js can reference window.accessToken
 Object.defineProperty(window, 'accessToken', {
   get: () => accessToken,
   set: (v) => { accessToken = v; },
   configurable: true,
+});
+
+// Auto-sign-in if credentials already saved
+window.addEventListener('DOMContentLoaded', () => {
+  if (oauthClientId && oauthApiKey) {
+    // Pre-fill modal inputs so connectGDriveOAuth also works
+    const mid = document.getElementById('oauthClientId');
+    const mak = document.getElementById('oauthApiKey');
+    if (mid) mid.value = oauthClientId;
+    if (mak) mak.value = oauthApiKey;
+    // Trigger sign-in automatically — skips the credential prompt
+    loadGoogleAPIs(() => {
+      initGapiClient(() => {
+        initTokenClient();
+        // Use silent token request (no consent prompt if already granted)
+        tokenClient.requestAccessToken({ prompt: '' });
+      });
+    });
+  }
 });
 
 function connectGDriveOAuth() {
@@ -148,8 +174,7 @@ function connectGDriveOAuth() {
   if (!clientIdInput) { showToast('Paste your Google OAuth Client ID first', 'error'); return; }
   if (!apiKeyInput)   { showToast('Paste your Google API Key first', 'error'); return; }
 
-  oauthClientId = clientIdInput;
-  oauthApiKey   = apiKeyInput;
+  saveCredentials(clientIdInput, apiKeyInput); // persist to localStorage
 
   loadGoogleAPIs(() => {
     initGapiClient(() => {
@@ -274,8 +299,7 @@ function startGoogleSignIn() {
   const apiKey   = (loginApiEl   && loginApiEl.value.trim())    ||
                    (modalApiEl   && modalApiEl.value.trim())    || '';
 
-  if (clientId) oauthClientId = clientId;
-  if (apiKey)   oauthApiKey   = apiKey;
+  saveCredentials(clientId, apiKey); // persist to localStorage
 
   // Sync back to modal inputs so connectGDriveOAuth also works
   if (modalClientEl && clientId) modalClientEl.value = clientId;
