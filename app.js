@@ -293,6 +293,23 @@ function generatePlan() {
 
   renderSummaryCards(plan, state);
   renderBudgetTable(plan, state);
+
+  // Auto-save to Drive if user is signed in
+  if (window.accessToken) {
+    const snapshot = {
+      id: crypto.randomUUID(),
+      savedAt: new Date().toISOString(),
+      campaignName: state.campaignName,
+      totalBudget: state.totalBudget,
+      country: state.country,
+      exchangeRate: state.exchangeRate,
+      state: JSON.parse(JSON.stringify(state)),
+      planData: JSON.parse(JSON.stringify(plan)),
+    };
+    savePlanToDrive(snapshot)
+      .then(() => showToast('✅ Plan saved to Google Drive', 'success'))
+      .catch(err => showToast('Could not save to Drive: ' + err.message, 'error'));
+  }
 }
 
 function renderSummaryCards(plan, state) {
@@ -400,7 +417,6 @@ function onActualSpendChange(input, rowIdx) {
   const val = parseFloat(input.value) || 0;
   rowActualData[rowIdx] = val;
 
-  // Find the corresponding row in planData
   const dataRow = window.planData.rows.filter(r => !r._isSubtotal)[rowIdx];
   if (!dataRow) return;
   dataRow.actualSpend = val;
@@ -410,7 +426,6 @@ function onActualSpendChange(input, rowIdx) {
   const diffCell = document.querySelector(`.diff-cell-${rowIdx}`);
   if (diffCell) diffCell.innerHTML = `<span class="${diffClass}">${fmtUSD(diff)}</span>`;
 
-  // Update grand total actual
   updateGrandTotalActual();
 }
 
@@ -433,6 +448,97 @@ function showToast(msg, type = 'success') {
   toast.className = `toast ${type}`;
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.classList.add('hidden'), 4000);
+}
+
+// ─── Dashboard Navigation ─────────────────────────────────────────────────────
+
+/**
+ * Called from the dashboard "New Campaign" button.
+ * Resets all app state and shows step 1 of the wizard.
+ */
+function startNewPlan() {
+  // Reset state to defaults
+  window.appState = {
+    currentStep: 1,
+    campaignName: '',
+    country: '',
+    totalBudget: 0,
+    exchangeRate: 18.5,
+    objective: 'Video Views',
+    activations: [],
+    platformSplits: { TikTok: 25, Instagram: 25, YouTube: 25, Facebook: 25 },
+  };
+  window.planData = null;
+  activationCounter = 0;
+
+  // Clear the activations list in the DOM
+  const list = document.getElementById('activationsList');
+  if (list) list.innerHTML = '';
+
+  // Reset the step 1 form fields
+  const nameEl = document.getElementById('campaignName');
+  const countryEl = document.getElementById('campaignCountry');
+  const budgetEl = document.getElementById('totalBudget');
+  const rateEl = document.getElementById('exchangeRate');
+  if (nameEl) nameEl.value = '';
+  if (countryEl) countryEl.value = '';
+  if (budgetEl) budgetEl.value = '';
+  if (rateEl) rateEl.value = '18.5';
+
+  // Hide TikTok warning
+  const warning = document.getElementById('tiktokWarning');
+  if (warning) warning.classList.add('hidden');
+
+  // Show wizard at step 1
+  showWizard();
+
+  // Reset step nav to step 1 active state
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  const step1 = document.getElementById('step1');
+  if (step1) step1.classList.add('active');
+  document.querySelectorAll('.step-btn').forEach(btn => {
+    btn.classList.remove('active', 'completed');
+    if (btn.dataset.step === '1') btn.classList.add('active');
+  });
+  window.appState.currentStep = 1;
+
+  // Add a default activation to get them started
+  addActivation({ name: 'Teaser', assetType: 'Video' });
+}
+
+/**
+ * Called when user clicks a plan card on the dashboard.
+ * Restores app state and renders the plan at step 4.
+ */
+function loadPlanIntoApp(plan) {
+  if (!plan) return;
+
+  window.appState = plan.state;
+  window.planData = plan.planData;
+
+  showWizard();
+
+  // Navigate to step 4 results view without re-generating the plan
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  const step4 = document.getElementById('step4');
+  if (step4) step4.classList.add('active');
+
+  document.querySelectorAll('.step-btn').forEach(btn => {
+    const s = parseInt(btn.dataset.step);
+    btn.classList.remove('active', 'completed');
+    if (s === 4) btn.classList.add('active');
+    else btn.classList.add('completed');
+  });
+
+  window.appState.currentStep = 4;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Re-render results using saved data (don't call generatePlan — it would re-save)
+  if (window.planData && window.appState) {
+    document.getElementById('planTitle').textContent = window.appState.campaignName || 'Budget Plan';
+    renderSummaryCards(window.planData, window.appState);
+    renderBudgetTable(window.planData, window.appState);
+  }
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────────

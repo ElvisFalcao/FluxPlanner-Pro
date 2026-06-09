@@ -9,11 +9,8 @@ function exportExcel() {
   const state = window.appState;
 
   const wb = XLSX.utils.book_new();
-
-  // Build sheet data
   const sheetData = [];
 
-  // Title row
   sheetData.push([state.campaignName || 'Campaign Budget Plan', '', '', '', '', '', '', '', '', '', '', '', '']);
   sheetData.push(['DATE', '', 'ACTIVATION', 'ASSET TYPE', 'PLATFORM', 'Country', 'RAND VALUE', 'DURATION', 'OBJECTIVE', 'COMPLETE', 'ACTUAL SPEND', 'DIFFERENCE', 'BUDGET']);
 
@@ -41,15 +38,12 @@ function exportExcel() {
     }
   }
 
-  // Grand total rows
   sheetData.push(['', '', '', '', '', '', '', '', '', '', fmtUSD(grandTotalActual), '', '']);
   sheetData.push(['', '', '', '', '', fmtZAR(zarGrandTotal), '', '', 'GRAND TOTAL', '', '', '', fmtUSD(grandTotalBudget)]);
   sheetData.push(['', '', '', '', '', '', '', '', 'Underspend', '', '', '0', fmtUSD(underspend)]);
   sheetData.push(['', '', '', '', '', '', '', '', 'Budget overall', '', '', '', fmtUSD(budgetOverall)]);
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-  // Column widths
   ws['!cols'] = [
     { wch: 14 }, { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
     { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 10 },
@@ -123,7 +117,7 @@ function closeGDriveModal(e) {
   document.body.style.overflow = '';
 }
 
-// Quick option: download CSV then open sheets.new so user can import in one flow
+// Quick option: download CSV then open sheets.new
 function quickGSheetsExport() {
   exportCSV();
   setTimeout(() => {
@@ -140,6 +134,13 @@ let accessToken = null;
 let oauthClientId = '';
 let oauthApiKey = '';
 
+// Expose accessToken globally so plans.js can reference window.accessToken
+Object.defineProperty(window, 'accessToken', {
+  get: () => accessToken,
+  set: (v) => { accessToken = v; },
+  configurable: true,
+});
+
 function connectGDriveOAuth() {
   const clientIdInput = document.getElementById('oauthClientId').value.trim();
   const apiKeyInput   = document.getElementById('oauthApiKey').value.trim();
@@ -150,7 +151,6 @@ function connectGDriveOAuth() {
   oauthClientId = clientIdInput;
   oauthApiKey   = apiKeyInput;
 
-  // Dynamically load Google Identity Services + GAPI
   loadGoogleAPIs(() => {
     initGapiClient(() => {
       initTokenClient();
@@ -208,8 +208,28 @@ function initTokenClient() {
       accessToken = tokenResponse.access_token;
       gapi.client.setToken({ access_token: accessToken });
       updateGDriveUI(true);
-      showToast('✅ Connected to Google Drive!', 'success');
       closeGDriveModal();
+
+      // Fetch user profile then transition to the My Plans dashboard
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then(r => r.json())
+        .then(info => {
+          window.driveUserInfo = info;
+          showToast(`✅ Signed in as ${info.email || 'Google User'}`, 'success');
+          showDashboard();
+          listPlansFromDrive()
+            .then(plans => renderDashboard(plans))
+            .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
+        })
+        .catch(() => {
+          showToast('✅ Connected to Google Drive!', 'success');
+          showDashboard();
+          listPlansFromDrive()
+            .then(plans => renderDashboard(plans))
+            .catch(() => renderDashboard([]));
+        });
     },
   });
 }
@@ -223,13 +243,71 @@ function updateGDriveUI(loggedIn) {
   const loginBtn = document.getElementById('gdriveLoginBtn');
   const userEl   = document.getElementById('gdriveUser');
   if (loggedIn) {
-    loginBtn.classList.add('hidden');
-    userEl.classList.remove('hidden');
-    userEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="#34D399"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#34D399" stroke-width="2"/></svg> Drive Connected`;
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (userEl) {
+      userEl.classList.remove('hidden');
+      userEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="#34D399"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#34D399" stroke-width="2"/></svg> Drive Connected`;
+    }
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (userEl)   userEl.classList.add('hidden');
   }
 }
 
-// ─── Save to Drive (after OAuth) ──────────────────────────────────────────────
+// ─── Login Screen Helpers ─────────────────────────────────────────────────────
+
+/**
+ * Called from the Login Screen "Sign in with Google" button.
+ * Reads Client ID / API Key from the Drive modal inputs (if already entered),
+ * then triggers the full Google OAuth flow.
+ */
+function startGoogleSignIn() {
+  const clientIdInput = document.getElementById('oauthClientId');
+  const apiKeyInput   = document.getElementById('oauthApiKey');
+
+  if (clientIdInput && clientIdInput.value.trim()) oauthClientId = clientIdInput.value.trim();
+  if (apiKeyInput   && apiKeyInput.value.trim())   oauthApiKey   = apiKeyInput.value.trim();
+
+  if (!oauthClientId) {
+    // Credentials not set — open the Drive modal so user can enter them
+    showToast('Enter your Google OAuth Client ID in the Drive settings first', 'error');
+    openGDriveModal();
+    return;
+  }
+
+  loadGoogleAPIs(() => {
+    initGapiClient(() => {
+      initTokenClient();
+      requestGoogleToken();
+    });
+  });
+}
+
+/**
+ * Sign the user out: revoke the Google token, clear all state,
+ * and return to the login screen.
+ */
+function signOutGoogle() {
+  if (typeof google !== 'undefined' && google?.accounts?.oauth2 && accessToken) {
+    try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (_) {}
+  }
+  accessToken = null;
+  window.driveUserInfo = null;
+  // Reset the Drive folder ID cache in plans.js
+  if (typeof driveFolderId !== 'undefined') { driveFolderId = null; }
+
+  const loginScreen     = document.getElementById('loginScreen');
+  const dashboardScreen = document.getElementById('dashboardScreen');
+  const appWrapper      = document.getElementById('appWrapper');
+  if (loginScreen)     loginScreen.style.display     = 'flex';
+  if (dashboardScreen) dashboardScreen.style.display  = 'none';
+  if (appWrapper)      appWrapper.style.display       = 'none';
+
+  updateGDriveUI(false);
+  showToast('Signed out', 'success');
+}
+
+// ─── Save to Drive as Spreadsheet (manual export button) ─────────────────────
 async function exportToGDrive() {
   if (!window.planData) { showToast('Generate a plan first', 'error'); return; }
 
