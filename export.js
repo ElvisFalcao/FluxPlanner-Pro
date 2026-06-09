@@ -262,16 +262,30 @@ function updateGDriveUI(loggedIn) {
  * then triggers the full Google OAuth flow.
  */
 function startGoogleSignIn() {
-  const clientIdInput = document.getElementById('oauthClientId');
-  const apiKeyInput   = document.getElementById('oauthApiKey');
+  // Read from login screen inputs first (loginClientId / loginApiKey)
+  const loginClientEl = document.getElementById('loginClientId');
+  const loginApiEl    = document.getElementById('loginApiKey');
+  const modalClientEl = document.getElementById('oauthClientId');
+  const modalApiEl    = document.getElementById('oauthApiKey');
 
-  if (clientIdInput && clientIdInput.value.trim()) oauthClientId = clientIdInput.value.trim();
-  if (apiKeyInput   && apiKeyInput.value.trim())   oauthApiKey   = apiKeyInput.value.trim();
+  // Pick whichever input has a value
+  const clientId = (loginClientEl && loginClientEl.value.trim()) ||
+                   (modalClientEl && modalClientEl.value.trim()) || '';
+  const apiKey   = (loginApiEl   && loginApiEl.value.trim())    ||
+                   (modalApiEl   && modalApiEl.value.trim())    || '';
+
+  if (clientId) oauthClientId = clientId;
+  if (apiKey)   oauthApiKey   = apiKey;
+
+  // Sync back to modal inputs so connectGDriveOAuth also works
+  if (modalClientEl && clientId) modalClientEl.value = clientId;
+  if (modalApiEl   && apiKey)   modalApiEl.value   = apiKey;
 
   if (!oauthClientId) {
-    // Credentials not set — open the Drive modal so user can enter them
-    showToast('Enter your Google OAuth Client ID in the Drive settings first', 'error');
-    openGDriveModal();
+    // No credentials yet — expand the credentials section
+    const credFields = document.getElementById('credFields');
+    if (credFields) credFields.style.display = 'block';
+    showToast('Please enter your OAuth Client ID above first', 'error');
     return;
   }
 

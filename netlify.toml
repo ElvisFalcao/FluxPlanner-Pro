@@ -1,0 +1,11 @@
+[build]
+  # No build command needed — Tailwind is loaded via CDN at runtime
+  command = ""
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
