@@ -78,6 +78,41 @@
         Sign in with Google
       </button>
 
+      <!-- Credentials section -->
+      <div style="margin-top:20px;" id="credentialsSection">
+        <button onclick="document.getElementById('credFields').style.display=document.getElementById('credFields').style.display==='none'?'block':'none'"
+                style="background:none;border:none;color:#6C63FF;font-size:0.8rem;font-family:'Inter',sans-serif;
+                       cursor:pointer;text-decoration:underline;margin-bottom:8px;">
+          ⚙ Enter Google OAuth credentials
+        </button>
+        <div id="credFields" style="display:none;text-align:left;">
+          <div style="margin-bottom:10px;">
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:#8892B0;
+                           text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">
+              OAuth Client ID
+            </label>
+            <input id="oauthClientId" type="text" placeholder="xxxx.apps.googleusercontent.com"
+                   style="width:100%;background:#0F111A;border:1px solid rgba(255,255,255,0.1);
+                          border-radius:8px;padding:10px 12px;color:#F0F2FF;font-size:0.85rem;
+                          font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;" />
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="display:block;font-size:0.75rem;font-weight:600;color:#8892B0;
+                           text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">
+              API Key
+            </label>
+            <input id="oauthApiKey" type="text" placeholder="AIza..."
+                   style="width:100%;background:#0F111A;border:1px solid rgba(255,255,255,0.1);
+                          border-radius:8px;padding:10px 12px;color:#F0F2FF;font-size:0.85rem;
+                          font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;" />
+          </div>
+          <p style="font-size:0.72rem;color:#4A5568;margin:0;">
+            Get these from <a href="https://console.cloud.google.com" target="_blank"
+            style="color:#6C63FF;">console.cloud.google.com</a>. Only needed once.
+          </p>
+        </div>
+      </div>
+
       <p style="margin-top:20px;font-size:0.78rem;color:#4A5568;line-height:1.5;">
         Plans are saved privately in your Google Drive.
         <br>We only access files created by this app.
