@@ -18,6 +18,17 @@ window.appState = {
 window.planData = null;
 let activationCounter = 0;
 
+// Flat, monochrome lock icon (gold when locked, grey when open) — matches the
+// line-icon style used elsewhere. Returns an SVG string.
+function lockIconHTML(locked) {
+  const c = locked ? '#FCA311' : '#7C8597';
+  const shackle = locked
+    ? `<path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="${c}" stroke-width="2"/>`
+    : `<path d="M8 11V7a4 4 0 0 1 7.5-2" stroke="${c}" stroke-width="2"/>`;
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none">` +
+    `<rect x="5" y="11" width="14" height="9" rx="2" stroke="${c}" stroke-width="2"/>${shackle}</svg>`;
+}
+
 // ─── Navigation ────────────────────────────────────────────────────────────────
 function goToStep(n) {
   const current = window.appState.currentStep;
@@ -159,7 +170,7 @@ function renderActivation(act) {
           <button class="asset-pill video ${act.assetType === 'Video' ? 'selected' : ''}"
             onclick="selectAsset('${act.id}', 'Video', this)">🎬 Video</button>
           <button class="asset-pill animated ${act.assetType === 'Animated Static' ? 'selected' : ''}"
-            onclick="selectAsset('${act.id}', 'Animated Static', this)">✨ Animated</button>
+            onclick="selectAsset('${act.id}', 'Animated Static', this)">✨ Animated Static</button>
           <button class="asset-pill static ${act.assetType === 'Static' ? 'selected' : ''}"
             onclick="selectAsset('${act.id}', 'Static', this)">🖼 Static</button>
         </div>
@@ -178,7 +189,7 @@ function renderActivation(act) {
           </div>
           <button class="lock-btn" id="budgetlock-${act.id}" onclick="toggleActivationBudgetLock('${act.id}')"
             title="Lock this budget so it isn't auto-adjusted"
-            style="background:none;border:none;cursor:pointer;font-size:1.2rem;">${act.budgetLocked ? '🔒' : '🔓'}</button>
+            style="background:none;border:none;cursor:pointer;">${lockIconHTML(act.budgetLocked)}</button>
         </div>
       </div>
     </div>
@@ -288,7 +299,7 @@ function onActivationBudgetInput(id, val) {
   act.budget = amount;
   act.budgetLocked = true;             // typing a value pins it
   const lockBtn = document.getElementById(`budgetlock-${id}`);
-  if (lockBtn) lockBtn.textContent = '🔒';
+  if (lockBtn) lockBtn.innerHTML = lockIconHTML(true);
   refreshActivationBudgets();
 }
 
@@ -297,7 +308,7 @@ function toggleActivationBudgetLock(id) {
   if (!act) return;
   act.budgetLocked = !act.budgetLocked;
   const lockBtn = document.getElementById(`budgetlock-${id}`);
-  if (lockBtn) lockBtn.textContent = act.budgetLocked ? '🔒' : '🔓';
+  if (lockBtn) lockBtn.innerHTML = lockIconHTML(act.budgetLocked);
   refreshActivationBudgets();
 }
 
@@ -361,8 +372,8 @@ function renderPlatformSplits() {
           min="0" max="100" step="1" value="${pct}"
           ${(disabled || window.appState.lockedPlatforms[platform.id]) ? 'disabled' : ''}
           oninput="onSplitInput('${platform.id}', this.value)" style="width:100%" />
-        <button class="lock-btn" onclick="toggleLock('${platform.id}')" ${disabled ? 'disabled' : ''} style="background:none;border:none;cursor:pointer;font-size:1.2rem;" title="Toggle Lock">
-          ${(window.appState.lockedPlatforms && window.appState.lockedPlatforms[platform.id]) ? '🔒' : '🔓'}
+        <button class="lock-btn" onclick="toggleLock('${platform.id}')" ${disabled ? 'disabled' : ''} style="background:none;border:none;cursor:pointer;" title="Toggle Lock">
+          ${lockIconHTML(!!(window.appState.lockedPlatforms && window.appState.lockedPlatforms[platform.id]))}
         </button>
       </div>
       <div class="split-usd-display" id="usd-${platform.id}">${fmtUSD(usdAmt)}</div>

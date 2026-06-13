@@ -130,6 +130,11 @@ body::before {
 }
 .form-group input:focus,.form-group select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-dim);}
 .form-group input::placeholder{color:var(--text-muted);}
+/* Make the native date-picker (calendar) icon visible on the dark input */
+.form-group input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(1);opacity:.55;cursor:pointer;transition:opacity var(--t);
+}
+.form-group input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;}
 .form-group select{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238892B0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer;
@@ -142,10 +147,11 @@ body::before {
 
 /* ── ASSET PILLS ───────────────────────────────────────────── */
 .asset-type-selector{display:flex;gap:6px;flex-wrap:wrap;}
-.asset-pill{padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-input);color:var(--text-sec);transition:var(--t);}
-.asset-pill.selected.video{background:rgba(252,163,17,.2);border-color:var(--primary);color:#FFCF6B;}
-.asset-pill.selected.animated{background:rgba(251,191,36,.2);border-color:var(--amber);color:var(--amber);}
-.asset-pill.selected.static{background:rgba(107,114,128,.2);border-color:#6B7280;color:#9CA3AF;}
+.asset-pill{padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-input);color:var(--text-sec);transition:var(--t);white-space:nowrap;}
+/* Selected assets share one gold accent (Static stays neutral grey) for a clean palette */
+.asset-pill.selected.video,
+.asset-pill.selected.animated{background:rgba(252,163,17,.2);border-color:var(--primary);color:#FFCF6B;}
+.asset-pill.selected.static{background:rgba(124,133,151,.2);border-color:#7C8597;color:#CBD2DE;}
 
 /* ── ACTIVATION CARDS ──────────────────────────────────────── */
 .activation-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:20px;transition:var(--t);position:relative;}
@@ -158,7 +164,9 @@ body::before {
 
 /* ── PER-ACTIVATION BUDGET FIELD ───────────────────────────── */
 .budget-field{display:flex;align-items:center;gap:8px;}
-.budget-field .lock-btn{flex-shrink:0;line-height:1;padding:2px;border-radius:6px;transition:var(--t);}
+.lock-btn{display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+.lock-btn svg{display:block;}
+.budget-field .lock-btn{flex-shrink:0;padding:2px;border-radius:6px;transition:var(--t);}
 .budget-field .lock-btn:hover{transform:scale(1.12);}
 
 /* ── RUNS-ON PREVIEW (auto platform fan-out) ───────────────── */
@@ -212,9 +220,9 @@ body::before {
 .platform-tag.instagram{background:rgba(225,48,108,.1);color:#F06292;border:1px solid rgba(225,48,108,.2);}
 .platform-tag.facebook{background:rgba(24,119,242,.1);color:#64B5F6;border:1px solid rgba(24,119,242,.2);}
 .asset-tag{font-size:.72rem;padding:2px 8px;border-radius:20px;font-weight:600;}
-.asset-tag.video{background:rgba(252,163,17,.15);color:#FFCF6B;}
-.asset-tag.animated{background:rgba(251,191,36,.15);color:#FBBF24;}
-.asset-tag.static{background:rgba(107,114,128,.15);color:#9CA3AF;}
+.asset-tag.video,
+.asset-tag.animated{background:rgba(252,163,17,.15);color:#FFCF6B;}
+.asset-tag.static{background:rgba(124,133,151,.15);color:#CBD2DE;}
 
 /* ── DIFF CELLS ────────────────────────────────────────────── */
 .diff-positive{color:var(--green);font-weight:600;}
