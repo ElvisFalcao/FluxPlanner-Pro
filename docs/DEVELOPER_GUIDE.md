@@ -158,7 +158,7 @@ platform), plus `_isSubtotal` marker rows.
 - One configured OAuth app; **credentials are baked into `config.js`** (`GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`). Users never paste anything. (The old per‑user "paste your credentials" flow was removed.)
 - Uses the GIS **token client** (implicit/token flow), scope `email profile https://www.googleapis.com/auth/drive.file`.
 - Token is cached in `localStorage` (`fpro_token`, ~1h expiry). On load we **restore from cache** (no popup). We do **not** auto‑open an OAuth popup on load (browsers block popups without a user gesture).
-- Sign‑in tries silent (`prompt:''`) first, falling back to consent.
+- Sign‑in tries silent (`prompt:''`) first; if that can't complete it falls back to `prompt:'select_account'` (account picker). It does **not** use `prompt:'consent'` — that forced the full permission screen on every sign‑in. Already‑granted users now just pick their account; new users still consent once.
 
 ### Email/password accounts — `accounts.js`
 - Supabase Auth `signUp` / `signInWithPassword`. **Email confirmation is OFF** (instant access) — this is a project setting in the Supabase dashboard.
@@ -272,6 +272,8 @@ Add `http://localhost:5173` to the Google OAuth Authorized origins to test Googl
 
 - **Drive delete uses `PATCH { trashed:true }`**, not the v2 `POST .../files/{id}/trash` (which doesn't exist in Drive **v3** and fails as a browser "Failed to fetch"). All other Drive calls use v3 endpoints.
 - **No auto OAuth popup on page load** — browsers block popups without a user gesture. We restore from the cached token instead; the popup only fires on the sign‑in button click.
+- **Google sign‑in prompt = `select_account`, never `consent`** — forcing `prompt:'consent'` re‑showed the permission screen on every sign‑in (the silent `prompt:''` attempt frequently fails under third‑party‑cookie restrictions, so the fallback ran constantly). `select_account` lets granted users through with just an account pick.
+- **Screen management** — there are four mutually‑exclusive top‑level screens: `#loginScreen`, `#dashboardScreen`, `#appWrapper` (the wizard), and `#adminScreen` (a full page, not a modal). Each `show*` function (`showDashboard`, `showWizard`, `showLoginScreen`, `showAdminScreen`) must hide **all** the others — including `#adminScreen`. Forgetting to hide `#adminScreen` made it linger below the dashboard after visiting Admin.
 - **Login screen scroll**: it's a `position:fixed` overlay. To both center the card *and* let it scroll on short windows, the card sits in a `min-height:100%` flex‑column wrapper with `margin-block:auto` (plain `align-items:center` clipped the top and couldn't scroll).
 - **Admin for Google users**: they have no Supabase session, so admin Edge Functions verify the **Google access token** via Google `tokeninfo` (checking `aud` == our client id and the email). Account admins are verified via their Supabase JWT instead.
 - **`adminCall` uses raw `fetch`** (not `supabase.functions.invoke`) so it can read the function's JSON error message cleanly.
