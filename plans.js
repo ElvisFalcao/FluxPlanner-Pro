@@ -471,6 +471,8 @@ function showDashboard() {
   if (loginScreen)     loginScreen.style.display     = 'none';
   if (dashboardScreen) dashboardScreen.style.display  = 'flex';
   if (appWrapper)      appWrapper.style.display       = 'none';
+  const adminScreen = document.getElementById('adminScreen');
+  if (adminScreen)     adminScreen.style.display      = 'none';
 
   // Header email/avatar, guest banner, and Drive-only controls (by session type).
   if (typeof updateDashboardChrome === 'function') updateDashboardChrome();
@@ -501,4 +503,6 @@ function showWizard() {
   if (loginScreen)     loginScreen.style.display     = 'none';
   if (dashboardScreen) dashboardScreen.style.display  = 'none';
   if (appWrapper)      appWrapper.style.display       = 'flex';
+  const adminScreen = document.getElementById('adminScreen');
+  if (adminScreen)     adminScreen.style.display      = 'none';
 }

@@ -254,10 +254,13 @@ function initTokenClient() {
         // A silent (auto) attempt that needs user interaction is normal on a
         // fresh browser — just stay on the login screen, no error shown.
         if (signInMode === 'auto') return;
-        // Interactive attempt failed silently — retry once WITH a consent prompt.
+        // Silent attempt couldn't complete — retry once asking only to pick the
+        // account. For an already-granted user Google skips the consent screen;
+        // a brand-new user still consents once. (Using 'consent' here re-showed
+        // the permission screen on every sign-in.)
         if (!consentRetried) {
           consentRetried = true;
-          tokenClient.requestAccessToken({ prompt: 'consent' });
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
           return;
         }
         const wasConnect = driveConnectOnly;

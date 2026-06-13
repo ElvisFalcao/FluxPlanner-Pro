@@ -40,9 +40,11 @@ function showLoginScreen() {
   const l = document.getElementById('loginScreen');
   const d = document.getElementById('dashboardScreen');
   const w = document.getElementById('appWrapper');
+  const a = document.getElementById('adminScreen');
   if (l) l.style.display = 'flex';
   if (d) d.style.display = 'none';
   if (w) w.style.display = 'none';
+  if (a) a.style.display = 'none';
 }
 
 /**
