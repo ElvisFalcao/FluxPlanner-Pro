@@ -12,6 +12,7 @@ window.appState = {
   objective: 'Video Views',
   activations: [],
   platformSplits: { TikTok: 25, Instagram: 25, YouTube: 25, Facebook: 25 },
+  lockedPlatforms: {},
 };
 
 window.planData = null;
@@ -237,13 +238,18 @@ function renderPlatformSplits() {
       <div class="split-slider-wrapper">
         <input type="range" class="split-slider" id="slider-${platform.id}"
           min="0" max="100" step="1" value="${pct}"
-          ${disabled ? 'disabled' : ''}
+          ${(disabled || window.appState.lockedPlatforms[platform.id]) ? 'disabled' : ''}
           oninput="onSplitSlider('${platform.id}', this.value)" />
       </div>
-      <input type="number" class="split-pct-input" id="pct-${platform.id}"
-        min="0" max="100" step="1" value="${pct}"
-        ${disabled ? 'disabled' : ''}
-        oninput="onSplitInput('${platform.id}', this.value)" />
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="number" class="split-pct-input" id="pct-${platform.id}"
+          min="0" max="100" step="1" value="${pct}"
+          ${(disabled || window.appState.lockedPlatforms[platform.id]) ? 'disabled' : ''}
+          oninput="onSplitInput('${platform.id}', this.value)" style="width:100%" />
+        <button class="lock-btn" onclick="toggleLock('${platform.id}')" ${disabled ? 'disabled' : ''} style="background:none;border:none;cursor:pointer;font-size:1.2rem;" title="Toggle Lock">
+          ${(window.appState.lockedPlatforms && window.appState.lockedPlatforms[platform.id]) ? '🔒' : '🔓'}
+        </button>
+      </div>
       <div class="split-usd-display" id="usd-${platform.id}">${fmtUSD(usdAmt)}</div>
     `;
 
@@ -253,18 +259,108 @@ function renderPlatformSplits() {
   updateSplitTotal();
 }
 
+function toggleLock(platformId) {
+  if (!window.appState.lockedPlatforms) window.appState.lockedPlatforms = {};
+  window.appState.lockedPlatforms[platformId] = !window.appState.lockedPlatforms[platformId];
+  renderPlatformSplits();
+}
+
 function onSplitSlider(platformId, val) {
-  window.appState.platformSplits[platformId] = parseFloat(val);
-  document.getElementById(`pct-${platformId}`).value = val;
-  document.getElementById(`usd-${platformId}`).textContent = fmtUSD((val / 100) * window.appState.totalBudget);
-  updateSplitTotal();
+  handleSplitChange(platformId, parseInt(val, 10) || 0);
 }
 
 function onSplitInput(platformId, val) {
-  const v = Math.max(0, Math.min(100, parseFloat(val) || 0));
-  window.appState.platformSplits[platformId] = v;
-  document.getElementById(`slider-${platformId}`).value = v;
-  document.getElementById(`usd-${platformId}`).textContent = fmtUSD((v / 100) * window.appState.totalBudget);
+  handleSplitChange(platformId, parseInt(val, 10) || 0);
+}
+
+function handleSplitChange(changedId, newVal) {
+  const state = window.appState;
+  if (!state.lockedPlatforms) state.lockedPlatforms = {};
+  
+  const countryCode = state.country;
+  const countryData = COUNTRY_DATA[countryCode] || {};
+  
+  // Determine valid (unlocked and enabled) platforms
+  const validPlatforms = PLATFORMS.map(p => p.id).filter(id => {
+    const disabled = !countryData.tiktokAllowed && id === 'TikTok';
+    return !disabled;
+  });
+  
+  if (!validPlatforms.includes(changedId)) return;
+  if (state.lockedPlatforms[changedId]) return;
+  
+  let lockedSum = 0;
+  validPlatforms.forEach(id => {
+    if (state.lockedPlatforms[id] && id !== changedId) {
+      lockedSum += state.platformSplits[id];
+    }
+  });
+  
+  // Clamp newVal
+  let val = Math.max(0, Math.min(100 - lockedSum, newVal));
+  state.platformSplits[changedId] = val;
+  
+  const unlockedOthers = validPlatforms.filter(id => id !== changedId && !state.lockedPlatforms[id]);
+  const remainingForOthers = 100 - lockedSum - val;
+  
+  if (unlockedOthers.length === 0) {
+    // N-1 locked, force the value
+    val = 100 - lockedSum;
+    state.platformSplits[changedId] = val;
+  } else if (remainingForOthers > 0) {
+    // Distribute proportionally
+    let currentSumOthers = 0;
+    unlockedOthers.forEach(id => {
+      currentSumOthers += state.platformSplits[id];
+    });
+    
+    let sumToUse = currentSumOthers === 0 ? unlockedOthers.length : currentSumOthers;
+    
+    let exactAllocations = [];
+    unlockedOthers.forEach(id => {
+      let weight = currentSumOthers === 0 ? 1 : state.platformSplits[id];
+      exactAllocations.push({ id, exact: (weight / sumToUse) * remainingForOthers });
+    });
+    
+    // Largest Remainder Method
+    let intAllocations = exactAllocations.map(a => ({ id: a.id, val: Math.floor(a.exact), remainder: a.exact - Math.floor(a.exact) }));
+    let allocatedSum = intAllocations.reduce((sum, a) => sum + a.val, 0);
+    let remainderToDistribute = remainingForOthers - allocatedSum;
+    
+    intAllocations.sort((a, b) => {
+      const diff = b.remainder - a.remainder;
+      if (Math.abs(diff) > 1e-6) return diff;
+      return state.platformSplits[a.id] - state.platformSplits[b.id];
+    });
+    for (let i = 0; i < remainderToDistribute; i++) {
+      intAllocations[i].val += 1;
+    }
+    
+    intAllocations.forEach(a => {
+      state.platformSplits[a.id] = a.val;
+    });
+  } else {
+    unlockedOthers.forEach(id => {
+      state.platformSplits[id] = 0;
+    });
+  }
+  
+  PLATFORMS.forEach(p => {
+    if (!validPlatforms.includes(p.id)) {
+      state.platformSplits[p.id] = 0;
+    }
+  });
+  
+  PLATFORMS.forEach(p => {
+    const pct = state.platformSplits[p.id];
+    const pctInput = document.getElementById(`pct-${p.id}`);
+    const sliderInput = document.getElementById(`slider-${p.id}`);
+    const usdDiv = document.getElementById(`usd-${p.id}`);
+    if (pctInput) pctInput.value = pct;
+    if (sliderInput) sliderInput.value = pct;
+    if (usdDiv) usdDiv.textContent = fmtUSD((pct / 100) * state.totalBudget);
+  });
+  
   updateSplitTotal();
 }
 
@@ -467,6 +563,7 @@ function startNewPlan() {
     objective: 'Video Views',
     activations: [],
     platformSplits: { TikTok: 25, Instagram: 25, YouTube: 25, Facebook: 25 },
+    lockedPlatforms: {},
   };
   window.planData = null;
   activationCounter = 0;

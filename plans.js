@@ -245,25 +245,25 @@ function renderDashboard(plans) {
 
     return `
       <div class="plan-card" data-file-id="${fileId}"
-           style="background:#1A1D26;border:1px solid rgba(255,255,255,0.07);border-radius:16px;
+           style="background:#14213D;border:1px solid rgba(255,255,255,0.07);border-radius:16px;
                   padding:20px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;"
-           onmouseenter="this.style.borderColor='rgba(108,99,255,0.4)';this.style.boxShadow='0 4px 20px rgba(108,99,255,0.12)';this.querySelector('.card-actions').style.opacity='1';"
+           onmouseenter="this.style.borderColor='rgba(252,163,17,0.4)';this.style.boxShadow='0 4px 20px rgba(252,163,17,0.12)';this.querySelector('.card-actions').style.opacity='1';"
            onmouseleave="this.style.borderColor='rgba(255,255,255,0.07)';this.style.boxShadow='none';this.querySelector('.card-actions').style.opacity='0';"
            onclick="handlePlanCardClick('${fileId}', event)">
 
         <!-- Top accent bar -->
         <div style="position:absolute;top:0;left:0;right:0;height:3px;
-                    background:linear-gradient(90deg,#6C63FF,#FF6584);opacity:0.7;pointer-events:none;"></div>
+                    background:linear-gradient(90deg,#FCA311,#FFD27A);opacity:0.85;pointer-events:none;"></div>
 
         <!-- Campaign name -->
         <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;font-weight:700;
-                    color:#F0F2FF;margin-bottom:10px;padding-right:80px;
+                    color:#FFFFFF;margin-bottom:10px;padding-right:80px;
                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
              title="${nameAttr}">${name}</div>
 
         <!-- Meta: date · country · budget -->
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;
-                    font-size:0.82rem;color:#8892B0;">
+                    font-size:0.82rem;color:#CBD2DE;">
           <span>${savedDate}</span>
           <span style="color:rgba(255,255,255,0.15)">·</span>
           <span>${flag} ${countryName}</span>
@@ -273,7 +273,7 @@ function renderDashboard(plans) {
 
         <!-- Platform dots -->
         <div style="display:flex;align-items:center;gap:6px;">
-          ${dots || '<span style="font-size:0.75rem;color:#4A5568;">No platforms</span>'}
+          ${dots || '<span style="font-size:0.75rem;color:#7C8597;">No platforms</span>'}
         </div>
 
         <!-- Hover actions -->
@@ -281,11 +281,11 @@ function renderDashboard(plans) {
              style="position:absolute;top:14px;right:14px;display:flex;gap:6px;
                     opacity:0;transition:opacity 0.2s;align-items:center;">
           <button onclick="handleOpenPlan('${fileId}', event)"
-                  style="background:rgba(108,99,255,0.18);border:1px solid rgba(108,99,255,0.35);
-                         color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:0.78rem;
+                  style="background:rgba(252,163,17,0.18);border:1px solid rgba(252,163,17,0.35);
+                         color:#FFCF6B;padding:5px 12px;border-radius:8px;font-size:0.78rem;
                          font-weight:600;cursor:pointer;transition:background 0.15s;"
-                  onmouseenter="this.style.background='rgba(108,99,255,0.32)'"
-                  onmouseleave="this.style.background='rgba(108,99,255,0.18)'">Open</button>
+                  onmouseenter="this.style.background='rgba(252,163,17,0.32)'"
+                  onmouseleave="this.style.background='rgba(252,163,17,0.18)'">Open</button>
           <button onclick="handleDeletePlan('${fileId}', event)" title="Delete plan"
                   style="background:rgba(255,69,58,0.1);border:1px solid rgba(255,69,58,0.25);
                          color:#FF453A;padding:5px 7px;border-radius:8px;cursor:pointer;

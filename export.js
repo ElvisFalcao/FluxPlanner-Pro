@@ -131,9 +131,15 @@ function quickGSheetsExport() {
 let gapiReady = false;
 let tokenClient = null;
 let accessToken = null;
-// Load saved credentials from localStorage (persists across page refreshes)
-let oauthClientId = localStorage.getItem('fpro_client_id') || '';
-let oauthApiKey   = localStorage.getItem('fpro_api_key')   || '';
+// Credentials come from config.js (baked in for everyone). localStorage is only
+// a legacy fallback for anyone who previously pasted their own.
+let oauthClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem('fpro_client_id') || '';
+let oauthApiKey   = window.GOOGLE_API_KEY   || localStorage.getItem('fpro_api_key')   || '';
+
+// Tracks whether the in-flight token request was a silent (background) attempt,
+// so the callback knows whether to fall back to an interactive consent prompt.
+let signInMode    = 'auto';   // 'auto' = silent on load · 'interactive' = user clicked sign-in
+let consentRetried = false;
 
 // Helper: save credentials to localStorage
 function saveCredentials(clientId, apiKey) {
@@ -148,40 +154,55 @@ Object.defineProperty(window, 'accessToken', {
   configurable: true,
 });
 
-// Auto-sign-in if credentials already saved
+// ─── Token cache ──────────────────────────────────────────────────────────────
+// Google access tokens last ~1 hour. We cache the token (with its expiry) so a
+// page refresh restores the session instantly — no popup, no re-consent. We do
+// NOT open an OAuth popup on load, because popups not triggered by a user click
+// are blocked by browsers.
+const TOKEN_KEY = 'fpro_token';
+
+function cacheToken(token, expiresInSec) {
+  try {
+    const expiresAt = Date.now() + (Number(expiresInSec || 3600) * 1000);
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
+  } catch (_) {}
+}
+
+function loadCachedToken() {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const { token, expiresAt } = JSON.parse(raw);
+    // Require at least 2 minutes of remaining validity.
+    if (token && expiresAt && expiresAt - Date.now() > 120000) return token;
+    localStorage.removeItem(TOKEN_KEY);
+  } catch (_) {}
+  return null;
+}
+
+function clearCachedToken() {
+  try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
+}
+
+// On load: if we have a still-valid cached token, restore the session silently.
+// Otherwise stay on the login screen and wait for the user to click sign-in.
 window.addEventListener('DOMContentLoaded', () => {
-  if (oauthClientId && oauthApiKey) {
-    // Pre-fill modal inputs so connectGDriveOAuth also works
-    const mid = document.getElementById('oauthClientId');
-    const mak = document.getElementById('oauthApiKey');
-    if (mid) mid.value = oauthClientId;
-    if (mak) mak.value = oauthApiKey;
-    // Trigger sign-in automatically — skips the credential prompt
-    loadGoogleAPIs(() => {
-      initGapiClient(() => {
-        initTokenClient();
-        // Use silent token request (no consent prompt if already granted)
-        tokenClient.requestAccessToken({ prompt: '' });
-      });
-    });
-  }
-});
-
-function connectGDriveOAuth() {
-  const clientIdInput = document.getElementById('oauthClientId').value.trim();
-  const apiKeyInput   = document.getElementById('oauthApiKey').value.trim();
-
-  if (!clientIdInput) { showToast('Paste your Google OAuth Client ID first', 'error'); return; }
-  if (!apiKeyInput)   { showToast('Paste your Google API Key first', 'error'); return; }
-
-  saveCredentials(clientIdInput, apiKeyInput); // persist to localStorage
-
+  if (!(oauthClientId && oauthApiKey)) return;
+  const cached = loadCachedToken();
+  if (!cached) return;
+  accessToken = cached;
   loadGoogleAPIs(() => {
     initGapiClient(() => {
       initTokenClient();
-      requestGoogleToken();
+      try { gapi.client.setToken({ access_token: accessToken }); } catch (_) {}
+      finishSignIn();
     });
   });
+});
+
+function connectGDriveOAuth() {
+  // Credentials are baked in — reuse the one-click sign-in flow.
+  startGoogleSignIn();
 }
 
 function loadGoogleAPIs(callback) {
@@ -227,41 +248,63 @@ function initTokenClient() {
     scope: 'https://www.googleapis.com/auth/drive.file',
     callback: (tokenResponse) => {
       if (tokenResponse.error) {
+        // A silent (auto) attempt that needs user interaction is normal on a
+        // fresh browser — just stay on the login screen, no error shown.
+        if (signInMode === 'auto') return;
+        // Interactive attempt failed silently — retry once WITH a consent prompt.
+        if (!consentRetried) {
+          consentRetried = true;
+          tokenClient.requestAccessToken({ prompt: 'consent' });
+          return;
+        }
         showToast('Google sign-in failed: ' + tokenResponse.error, 'error');
         return;
       }
+      consentRetried = false;
       accessToken = tokenResponse.access_token;
-      gapi.client.setToken({ access_token: accessToken });
-      updateGDriveUI(true);
-      closeGDriveModal();
-
-      // Fetch user profile then transition to the My Plans dashboard
-      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-        .then(r => r.json())
-        .then(info => {
-          window.driveUserInfo = info;
-          showToast(`✅ Signed in as ${info.email || 'Google User'}`, 'success');
-          showDashboard();
-          listPlansFromDrive()
-            .then(plans => renderDashboard(plans))
-            .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
-        })
-        .catch(() => {
-          showToast('✅ Connected to Google Drive!', 'success');
-          showDashboard();
-          listPlansFromDrive()
-            .then(plans => renderDashboard(plans))
-            .catch(() => renderDashboard([]));
-        });
+      cacheToken(accessToken, tokenResponse.expires_in);
+      try { gapi.client.setToken({ access_token: accessToken }); } catch (_) {}
+      finishSignIn();
     },
   });
 }
 
+/**
+ * Shared post-sign-in routine: update UI, fetch the user's profile, switch to
+ * the dashboard, and load their saved plans. Called both after a fresh sign-in
+ * and when restoring a cached token on page load.
+ */
+function finishSignIn() {
+  updateGDriveUI(true);
+  closeGDriveModal();
+
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+    .then(r => r.json())
+    .then(info => {
+      window.driveUserInfo = info;
+      if (info && info.email) showToast(`✅ Signed in as ${info.email}`, 'success');
+      showDashboard();
+      listPlansFromDrive()
+        .then(plans => renderDashboard(plans))
+        .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
+    })
+    .catch(() => {
+      showDashboard();
+      listPlansFromDrive()
+        .then(plans => renderDashboard(plans))
+        .catch(() => renderDashboard([]));
+    });
+}
+
 function requestGoogleToken() {
   if (!tokenClient) { initTokenClient(); }
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+  signInMode = 'interactive';
+  consentRetried = false;
+  // Try silently first — if already granted and signed in, no popup appears.
+  // The token callback automatically falls back to a consent prompt if needed.
+  tokenClient.requestAccessToken({ prompt: '' });
 }
 
 function updateGDriveUI(loggedIn) {
@@ -287,29 +330,9 @@ function updateGDriveUI(loggedIn) {
  * then triggers the full Google OAuth flow.
  */
 function startGoogleSignIn() {
-  // Read from login screen inputs first (loginClientId / loginApiKey)
-  const loginClientEl = document.getElementById('loginClientId');
-  const loginApiEl    = document.getElementById('loginApiKey');
-  const modalClientEl = document.getElementById('oauthClientId');
-  const modalApiEl    = document.getElementById('oauthApiKey');
-
-  // Pick whichever input has a value
-  const clientId = (loginClientEl && loginClientEl.value.trim()) ||
-                   (modalClientEl && modalClientEl.value.trim()) || '';
-  const apiKey   = (loginApiEl   && loginApiEl.value.trim())    ||
-                   (modalApiEl   && modalApiEl.value.trim())    || '';
-
-  saveCredentials(clientId, apiKey); // persist to localStorage
-
-  // Sync back to modal inputs so connectGDriveOAuth also works
-  if (modalClientEl && clientId) modalClientEl.value = clientId;
-  if (modalApiEl   && apiKey)   modalApiEl.value   = apiKey;
-
-  if (!oauthClientId) {
-    // No credentials yet — expand the credentials section
-    const credFields = document.getElementById('credFields');
-    if (credFields) credFields.style.display = 'block';
-    showToast('Please enter your OAuth Client ID above first', 'error');
+  // Credentials are baked into config.js, so there is nothing to paste.
+  if (!oauthClientId || !oauthApiKey) {
+    showToast('Google sign-in is not configured (missing config.js).', 'error');
     return;
   }
 
@@ -330,6 +353,7 @@ function signOutGoogle() {
     try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (_) {}
   }
   accessToken = null;
+  clearCachedToken();
   window.driveUserInfo = null;
   // Reset the Drive folder ID cache in plans.js
   if (typeof driveFolderId !== 'undefined') { driveFolderId = null; }
