@@ -185,6 +185,14 @@
             </svg>
             <span id="dashboardUserEmail" style="font-size:0.82rem;color:#CBD2DE;">Loading…</span>
           </div>
+          <!-- Settings (account users only) -->
+          <button id="settingsBtn" onclick="openSettings()" title="Account settings"
+                  style="display:none;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#CBD2DE;
+                         border-radius:8px;padding:7px 10px;cursor:pointer;transition:all 0.2s;align-items:center;"
+                  onmouseenter="this.style.borderColor='rgba(252,163,17,0.5)';this.style.color='#FCA311';"
+                  onmouseleave="this.style.borderColor='rgba(255,255,255,0.07)';this.style.color='#CBD2DE';">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 003.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 4.6h.09A1.65 1.65 0 009 3.09V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
           <!-- Sign out -->
           <button onclick="appSignOut()"
                   style="background:transparent;border:1px solid rgba(255,255,255,0.07);color:#7C8597;
@@ -572,6 +580,89 @@
             Sign in with Google
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       ACCOUNT SETTINGS MODAL (account users)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="settingsModal" class="modal-overlay hidden" onclick="closeSettings(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeSettings()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+
+      <div class="modal-header">
+        <div class="modal-icon" style="background:rgba(252,163,17,0.12);border:1px solid rgba(252,163,17,0.25);color:#FCA311;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 003.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 4.6h.09A1.65 1.65 0 009 3.09V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <div>
+          <h3 class="modal-title">Account Settings</h3>
+          <p class="modal-subtitle" id="settingsEmail"></p>
+        </div>
+      </div>
+
+      <div id="settingsMsg" style="display:none;font-size:0.85rem;margin-bottom:16px;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:8px;"></div>
+
+      <!-- Profile -->
+      <div style="border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:14px;">Profile</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+          <img id="settingsAvatar" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;background:#0B1326;border:1px solid var(--border);flex-shrink:0;" />
+          <div>
+            <input type="file" id="avatarFile" accept="image/*" style="display:none;" onchange="uploadAvatar(this)" />
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('avatarFile').click()">Upload photo</button>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">JPG/PNG, under 3 MB.</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="displayNameInput">Display name</label>
+          <input type="text" id="displayNameInput" placeholder="Your name" />
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveDisplayName()">Save profile</button>
+      </div>
+
+      <!-- Security -->
+      <div style="border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:14px;">Security</div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="newPassword">New password</label>
+          <input type="password" id="newPassword" placeholder="At least 6 characters" autocomplete="new-password" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="newPasswordConfirm">Confirm new password</label>
+          <input type="password" id="newPasswordConfirm" placeholder="Re-enter password" autocomplete="new-password" />
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="changePassword()">Update password</button>
+          <button class="btn btn-outline btn-sm" onclick="signOutEverywhere()">Sign out on all devices</button>
+        </div>
+      </div>
+
+      <!-- Connectors -->
+      <div style="border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:6px;">Connectors</div>
+        <p style="font-size:0.83rem;color:var(--text-sec);margin-bottom:14px;line-height:1.5;">Connect Google Drive to also save and export your plans to your own Drive.</p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="connectDriveFromSettings()">
+            <svg width="15" height="15" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm4.29 7L8.57 16.46h6.86L12 10.5zm3.43 0l3.43 5.96-3.43 5.96-3.43-5.96 3.43-5.96z"/></svg>
+            Connect Google Drive
+          </button>
+          <span id="driveStatus" style="font-size:0.83rem;font-weight:600;color:#34D399;"></span>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div style="border:1px solid rgba(255,69,58,0.3);border-radius:12px;padding:18px;">
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#FF453A;margin-bottom:6px;">Danger zone</div>
+        <p style="font-size:0.83rem;color:var(--text-sec);margin-bottom:14px;line-height:1.5;">Permanently delete your account and every plan you've saved. This cannot be undone.</p>
+        <button onclick="deleteAccount()"
+                style="background:rgba(255,69,58,0.12);border:1px solid rgba(255,69,58,0.35);color:#FF453A;
+                       border-radius:8px;padding:9px 16px;font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:background 0.15s;"
+                onmouseenter="this.style.background='rgba(255,69,58,0.22)';" onmouseleave="this.style.background='rgba(255,69,58,0.12)';">
+          Delete my account
+        </button>
       </div>
     </div>
   </div>

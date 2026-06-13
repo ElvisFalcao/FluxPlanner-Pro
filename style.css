@@ -121,6 +121,8 @@ body::before {
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group input[type="date"],
+.form-group input[type="password"],
+.form-group input[type="email"],
 .form-group select {
   background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);
   color:var(--text-pri);font-family:'Inter',sans-serif;font-size:.95rem;

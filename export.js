@@ -140,6 +140,7 @@ let oauthApiKey   = window.GOOGLE_API_KEY   || localStorage.getItem('fpro_api_ke
 // so the callback knows whether to fall back to an interactive consent prompt.
 let signInMode    = 'auto';   // 'auto' = silent on load · 'interactive' = user clicked sign-in
 let consentRetried = false;
+let driveConnectOnly = false; // true = obtain a Drive token WITHOUT changing the session (account users)
 
 // Helper: save credentials to localStorage
 function saveCredentials(clientId, apiKey) {
@@ -259,13 +260,27 @@ function initTokenClient() {
           tokenClient.requestAccessToken({ prompt: 'consent' });
           return;
         }
-        showToast('Google sign-in failed: ' + tokenResponse.error, 'error');
+        const wasConnect = driveConnectOnly;
+        driveConnectOnly = false;
+        showToast((wasConnect ? 'Could not connect Drive: ' : 'Google sign-in failed: ') + tokenResponse.error, 'error');
         return;
       }
       consentRetried = false;
       accessToken = tokenResponse.access_token;
       cacheToken(accessToken, tokenResponse.expires_in);
       try { gapi.client.setToken({ access_token: accessToken }); } catch (_) {}
+
+      // "Connect Drive" from an account's settings: just enable Drive, keep the
+      // current (account) session — don't switch to a Google session.
+      if (driveConnectOnly) {
+        driveConnectOnly = false;
+        window.driveConnected = true;
+        if (typeof updateDashboardChrome === 'function') updateDashboardChrome();
+        const ds = document.getElementById('driveStatus');
+        if (ds) { ds.textContent = '✓ Connected'; ds.style.color = '#34D399'; }
+        if (typeof showToast === 'function') showToast('✅ Google Drive connected', 'success');
+        return;
+      }
       finishSignIn();
     },
   });
@@ -301,6 +316,24 @@ function requestGoogleToken() {
   // Try silently first — if already granted and signed in, no popup appears.
   // The token callback automatically falls back to a consent prompt if needed.
   tokenClient.requestAccessToken({ prompt: '' });
+}
+
+// Connect Google Drive for an account user (from settings) without switching
+// the session to a Google session. Sets window.driveConnected + a Drive token.
+function connectDriveOnly() {
+  if (!oauthClientId || !oauthApiKey) {
+    if (typeof showToast === 'function') showToast('Google Drive is not configured.', 'error');
+    return;
+  }
+  driveConnectOnly = true;
+  loadGoogleAPIs(() => {
+    initGapiClient(() => {
+      initTokenClient();
+      signInMode = 'interactive';
+      consentRetried = false;
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+  });
 }
 
 function updateGDriveUI(loggedIn) {

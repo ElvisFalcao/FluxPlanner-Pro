@@ -42,14 +42,21 @@ function updateDashboardChrome() {
   const fallbackEl = document.getElementById('dashboardUserAvatarFallback');
 
   let label = 'Guest';
-  if (s.type === 'google')  label = (window.driveUserInfo && window.driveUserInfo.email) || 'Google account';
-  else if (s.type === 'account') label = s.email || 'My account';
-  else if (s.type === 'guest')   label = 'Guest · not saved to cloud';
+  let avatarUrl = '';
+  if (s.type === 'google') {
+    label = (window.driveUserInfo && window.driveUserInfo.email) || 'Google account';
+    avatarUrl = (window.driveUserInfo && window.driveUserInfo.picture) || '';
+  } else if (s.type === 'account') {
+    const md = (window.accountUser && window.accountUser.user_metadata) || {};
+    label = md.display_name || s.email || 'My account';
+    avatarUrl = md.avatar_url || '';
+  } else if (s.type === 'guest') {
+    label = 'Guest · not saved to cloud';
+  }
   if (emailEl) emailEl.textContent = label;
 
-  // Google profile picture only applies to the Google path.
-  if (s.type === 'google' && avatarEl && window.driveUserInfo && window.driveUserInfo.picture) {
-    avatarEl.src = window.driveUserInfo.picture;
+  if (avatarUrl && avatarEl) {
+    avatarEl.src = avatarUrl;
     avatarEl.style.display = 'inline-block';
     if (fallbackEl) fallbackEl.style.display = 'none';
   } else {
@@ -61,9 +68,14 @@ function updateDashboardChrome() {
   const banner = document.getElementById('guestBanner');
   if (banner) banner.style.display = (s.type === 'guest') ? 'flex' : 'none';
 
-  // Google Drive controls only make sense on the Google path.
+  // Settings is for account users (avatar / password / connectors live there).
+  const settingsBtn = document.getElementById('settingsBtn');
+  if (settingsBtn) settingsBtn.style.display = (s.type === 'account') ? '' : 'none';
+
+  // Google Drive controls: the Google owner always; account users once connected.
+  const driveVisible = (s.type === 'google') || (s.type === 'account' && window.driveConnected);
   document.querySelectorAll('.drive-only').forEach(el => {
-    el.style.display = (s.type === 'google') ? '' : 'none';
+    el.style.display = driveVisible ? '' : 'none';
   });
 }
 
@@ -99,6 +111,7 @@ async function accountSignUp() {
   if (!data.session) { _authMsg('Account created — check your inbox to confirm, then sign in.', 'success'); return; }
 
   setSession('account', email);
+  await refreshAccountUser();
   await migrateGuestPlansToAccount();
   showDashboard();
 }
@@ -114,6 +127,7 @@ async function accountSignIn() {
   if (error) { _authMsg(error.message, 'error'); return; }
 
   setSession('account', email);
+  await refreshAccountUser();
   showDashboard();
 }
 
@@ -135,6 +149,8 @@ async function appSignOut() {
     try { await window.supabaseClient.auth.signOut(); } catch (_) {}
   }
   window.appSession = null;
+  window.accountUser = null;
+  window.driveConnected = false;
   showLoginScreen();
   if (typeof showToast === 'function') showToast('Signed out', 'success');
 }
@@ -146,6 +162,7 @@ async function initSession() {
     if (window.supabaseClient) {
       const { data } = await window.supabaseClient.auth.getSession();
       if (data && data.session) {
+        window.accountUser = data.session.user;
         setSession('account', data.session.user && data.session.user.email);
         showDashboard();
         return;
@@ -260,4 +277,131 @@ async function deletePlanRouted(id) {
   if (t === 'google')  return deletePlanFromDrive(id);
   if (t === 'account') return dbDeletePlan(id);
   if (t === 'guest')   return guestDeletePlan(id);
+}
+
+// ─── Account settings (avatar, display name, password, connectors, delete) ──
+window.accountUser = null;
+
+async function refreshAccountUser() {
+  try {
+    if (!window.supabaseClient) return null;
+    const { data } = await window.supabaseClient.auth.getUser();
+    window.accountUser = (data && data.user) || null;
+    return window.accountUser;
+  } catch (_) { return null; }
+}
+
+function _settingsMsg(text, kind) {
+  const el = document.getElementById('settingsMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = kind === 'error' ? '#FF453A' : '#34D399';
+}
+
+function openSettings() {
+  if (currentSessionType() !== 'account') return;
+  const m = document.getElementById('settingsModal');
+  if (!m) return;
+  loadSettingsValues();
+  m.classList.remove('hidden');
+}
+
+function closeSettings(event) {
+  if (event && event.target !== event.currentTarget) return; // overlay-only close
+  const m = document.getElementById('settingsModal');
+  if (m) m.classList.add('hidden');
+}
+
+function loadSettingsValues() {
+  const u = window.accountUser;
+  const md = (u && u.user_metadata) || {};
+  const email = (window.appSession && window.appSession.email) || (u && u.email) || '';
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const emailEl = document.getElementById('settingsEmail'); if (emailEl) emailEl.textContent = email;
+  set('displayNameInput', md.display_name || '');
+  set('newPassword', ''); set('newPasswordConfirm', '');
+  const avi = document.getElementById('settingsAvatar');
+  if (avi) avi.src = md.avatar_url || _placeholderAvatar(email);
+  const ds = document.getElementById('driveStatus');
+  if (ds) { ds.textContent = window.driveConnected ? '✓ Connected' : ''; ds.style.color = '#34D399'; }
+  _settingsMsg('', null);
+}
+
+function _placeholderAvatar(seed) {
+  const letter = ((seed || 'U').trim()[0] || 'U').toUpperCase();
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' rx='32' fill='%230B1326'/><text x='32' y='42' font-family='Inter,sans-serif' font-size='28' fill='%23FCA311' text-anchor='middle'>${letter}</text></svg>`;
+  return 'data:image/svg+xml;utf8,' + svg;
+}
+
+async function saveDisplayName() {
+  const el = document.getElementById('displayNameInput');
+  const name = el ? el.value.trim() : '';
+  const { error } = await window.supabaseClient.auth.updateUser({ data: { display_name: name } });
+  if (error) { _settingsMsg(error.message, 'error'); return; }
+  await refreshAccountUser();
+  updateDashboardChrome();
+  _settingsMsg('Profile saved', 'success');
+}
+
+async function uploadAvatar(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) { _settingsMsg('Image must be under 3 MB.', 'error'); input.value = ''; return; }
+  const u = window.accountUser || await refreshAccountUser();
+  if (!u) { _settingsMsg('Not signed in.', 'error'); return; }
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+  const path = `${u.id}/avatar_${Date.now()}.${ext}`;
+  _settingsMsg('Uploading…', 'success');
+  const up = await window.supabaseClient.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+  if (up.error) { _settingsMsg(up.error.message, 'error'); input.value = ''; return; }
+  const { data: pub } = window.supabaseClient.storage.from('avatars').getPublicUrl(path);
+  const publicUrl = pub.publicUrl;
+  await window.supabaseClient.auth.updateUser({ data: { avatar_url: publicUrl } });
+  await refreshAccountUser();
+  const avi = document.getElementById('settingsAvatar'); if (avi) avi.src = publicUrl;
+  updateDashboardChrome();
+  _settingsMsg('Photo updated', 'success');
+  input.value = '';
+}
+
+async function changePassword() {
+  const p1 = (document.getElementById('newPassword') || {}).value || '';
+  const p2 = (document.getElementById('newPasswordConfirm') || {}).value || '';
+  if (p1.length < 6) { _settingsMsg('Password must be at least 6 characters.', 'error'); return; }
+  if (p1 !== p2) { _settingsMsg('Passwords do not match.', 'error'); return; }
+  const { error } = await window.supabaseClient.auth.updateUser({ password: p1 });
+  if (error) { _settingsMsg(error.message, 'error'); return; }
+  const a = document.getElementById('newPassword'); if (a) a.value = '';
+  const b = document.getElementById('newPasswordConfirm'); if (b) b.value = '';
+  _settingsMsg('Password updated', 'success');
+}
+
+async function signOutEverywhere() {
+  try { await window.supabaseClient.auth.signOut({ scope: 'global' }); } catch (_) {}
+  window.appSession = null; window.accountUser = null; window.driveConnected = false;
+  closeSettings();
+  showLoginScreen();
+  if (typeof showToast === 'function') showToast('Signed out on all devices', 'success');
+}
+
+function connectDriveFromSettings() {
+  if (typeof connectDriveOnly === 'function') connectDriveOnly();
+  else _settingsMsg('Drive connect is unavailable.', 'error');
+}
+
+async function deleteAccount() {
+  if (!confirm('Permanently delete your account and all of your saved plans? This cannot be undone.')) return;
+  _settingsMsg('Deleting account…', 'success');
+  try {
+    const { error } = await window.supabaseClient.functions.invoke('delete-account', { method: 'POST' });
+    if (error) { _settingsMsg('Delete failed: ' + error.message, 'error'); return; }
+    try { await window.supabaseClient.auth.signOut(); } catch (_) {}
+    window.appSession = null; window.accountUser = null; window.driveConnected = false;
+    closeSettings();
+    showLoginScreen();
+    if (typeof showToast === 'function') showToast('Your account has been deleted', 'success');
+  } catch (e) {
+    _settingsMsg('Delete failed: ' + String(e), 'error');
+  }
 }
