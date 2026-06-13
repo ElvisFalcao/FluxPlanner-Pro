@@ -154,6 +154,11 @@ body::before {
 .activation-delete:hover{background:rgba(255,69,58,.1);color:var(--red);}
 .activation-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
 
+/* ── PER-ACTIVATION BUDGET FIELD ───────────────────────────── */
+.budget-field{display:flex;align-items:center;gap:8px;}
+.budget-field .lock-btn{flex-shrink:0;line-height:1;padding:2px;border-radius:6px;transition:var(--t);}
+.budget-field .lock-btn:hover{transform:scale(1.12);}
+
 /* ── RUNS-ON PREVIEW (auto platform fan-out) ───────────────── */
 .runson{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
 .runson-label{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);}

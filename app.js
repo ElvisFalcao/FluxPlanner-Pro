@@ -34,6 +34,7 @@ function goToStep(n) {
   window.appState.currentStep = n;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  if (n === 2) refreshActivationBudgets();
   if (n === 3) renderPlatformSplits();
   if (n === 4) generatePlan();
 }
@@ -116,11 +117,14 @@ function addActivation(defaults = {}) {
     date: defaults.date || '',
     assetType: defaults.assetType || 'Video',
     objective: defaults.objective || '',
+    budget: defaults.budget || 0,        // USD allocated to this post
+    budgetLocked: !!defaults.budgetLocked, // pinned vs auto (asset-weight) share
     durations: defaults.durations || { ...DEFAULT_DURATIONS },
   };
 
   window.appState.activations.push(act);
   renderActivation(act);
+  refreshActivationBudgets();
 }
 
 function renderActivation(act) {
@@ -158,6 +162,23 @@ function renderActivation(act) {
             onclick="selectAsset('${act.id}', 'Animated Static', this)">✨ Animated</button>
           <button class="asset-pill static ${act.assetType === 'Static' ? 'selected' : ''}"
             onclick="selectAsset('${act.id}', 'Static', this)">🖼 Static</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          Budget
+          <span class="font-normal text-textMut text-[0.72rem] ml-1" id="budgetpct-${act.id}"></span>
+        </label>
+        <div class="budget-field">
+          <div class="input-prefix" style="flex:1;">
+            <span>$</span>
+            <input type="number" id="budget-${act.id}" min="0" step="0.01"
+              value="${act.budget ? act.budget.toFixed(2) : ''}"
+              oninput="onActivationBudgetInput('${act.id}', this.value)" />
+          </div>
+          <button class="lock-btn" id="budgetlock-${act.id}" onclick="toggleActivationBudgetLock('${act.id}')"
+            title="Lock this budget so it isn't auto-adjusted"
+            style="background:none;border:none;cursor:pointer;font-size:1.2rem;">${act.budgetLocked ? '🔒' : '🔓'}</button>
         </div>
       </div>
     </div>
@@ -213,6 +234,71 @@ function selectAsset(actId, type, btn) {
   const act = window.appState.activations.find(a => a.id === actId);
   if (act) act.assetType = type;
   renderRunsOn(actId);
+  // Asset weight drives the auto (unlocked) budget shares — recompute them.
+  refreshActivationBudgets();
+}
+
+// ─── Per-activation budget allocation ───────────────────────────────────────
+// Unlocked posts share the remaining budget by asset weight; locked posts keep
+// their pinned amount. Editing a post's $ pins it automatically.
+
+function refreshActivationBudgets() {
+  const acts  = window.appState.activations;
+  const total = window.appState.totalBudget || 0;
+  if (typeof computeActivationBudgets !== 'function') return;
+
+  const computed = computeActivationBudgets(acts, total);
+  computed.forEach(c => {
+    const act = acts.find(a => a.id === c.id);
+    if (!act) return;
+    if (!act.budgetLocked) act.budget = c.budgetUSD; // auto posts follow the engine
+    const input = document.getElementById(`budget-${act.id}`);
+    const pct   = document.getElementById(`budgetpct-${act.id}`);
+    if (input && document.activeElement !== input) input.value = (act.budget || 0).toFixed(2);
+    if (pct) pct.textContent = total > 0 ? `· ${((act.budget || 0) / total * 100).toFixed(1)}%` : '';
+  });
+  updateActivationBudgetTotal();
+}
+
+function updateActivationBudgetTotal() {
+  const total   = window.appState.totalBudget || 0;
+  const sum     = window.appState.activations.reduce((s, a) => s + (Number(a.budget) || 0), 0);
+  const totalEl = document.getElementById('activationBudgetTotal');
+  const warnEl  = document.getElementById('activationBudgetWarning');
+  if (totalEl) totalEl.textContent = fmtUSD(sum);
+  if (!warnEl) return;
+  const diff = sum - total;
+  if (diff > 0.5) {
+    warnEl.classList.remove('hidden');
+    warnEl.textContent = `⚠️ Locked posts exceed budget by ${fmtUSD(diff)}`;
+  } else if (diff < -0.5) {
+    warnEl.classList.remove('hidden');
+    warnEl.textContent = `${fmtUSD(-diff)} unallocated`;
+  } else {
+    warnEl.classList.add('hidden');
+  }
+}
+
+function onActivationBudgetInput(id, val) {
+  const act = window.appState.activations.find(a => a.id === id);
+  if (!act) return;
+  let amount = parseFloat(val);
+  if (isNaN(amount) || amount < 0) amount = 0;
+  amount = Math.min(amount, window.appState.totalBudget || 0);
+  act.budget = amount;
+  act.budgetLocked = true;             // typing a value pins it
+  const lockBtn = document.getElementById(`budgetlock-${id}`);
+  if (lockBtn) lockBtn.textContent = '🔒';
+  refreshActivationBudgets();
+}
+
+function toggleActivationBudgetLock(id) {
+  const act = window.appState.activations.find(a => a.id === id);
+  if (!act) return;
+  act.budgetLocked = !act.budgetLocked;
+  const lockBtn = document.getElementById(`budgetlock-${id}`);
+  if (lockBtn) lockBtn.textContent = act.budgetLocked ? '🔒' : '🔓';
+  refreshActivationBudgets();
 }
 
 function removeActivation(id) {
@@ -224,6 +310,8 @@ function removeActivation(id) {
     const idx = document.querySelector(`#card-${a.id} .activation-index`);
     if (idx) idx.textContent = `Activation #${i + 1}`;
   });
+  // Removing a post frees its budget — redistribute to the auto posts.
+  refreshActivationBudgets();
 }
 
 function collectActivationData() {

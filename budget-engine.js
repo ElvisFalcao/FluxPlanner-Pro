@@ -20,6 +20,35 @@ function calcActivationBudgets(activations, totalBudgetUSD) {
 }
 
 /**
+ * Distribute the total budget across activations honoring per-post overrides:
+ *   • Locked posts keep their pinned `budget` amount.
+ *   • Unlocked ("auto") posts share whatever is left, proportional to their
+ *     asset-type weight — so when nothing is locked this matches the plain
+ *     asset-weighted split (calcActivationBudgets) exactly.
+ * Returns each activation with a computed `budgetUSD`.
+ */
+function computeActivationBudgets(activations, totalBudgetUSD) {
+  if (!activations.length) return [];
+
+  const isLocked = a => !!a.budgetLocked;
+  let lockedSum = activations.filter(isLocked)
+    .reduce((s, a) => s + (Number(a.budget) || 0), 0);
+  lockedSum = Math.min(lockedSum, totalBudgetUSD);
+  const remaining = Math.max(0, totalBudgetUSD - lockedSum);
+
+  const autoActs = activations.filter(a => !isLocked(a));
+  const autoWeightSum = autoActs.reduce((s, a) => s + (ASSET_WEIGHTS[a.assetType] ?? 1.0), 0);
+
+  return activations.map(a => {
+    if (isLocked(a)) {
+      return { ...a, budgetUSD: Math.min(Number(a.budget) || 0, totalBudgetUSD) };
+    }
+    const w = ASSET_WEIGHTS[a.assetType] ?? 1.0;
+    return { ...a, budgetUSD: autoWeightSum > 0 ? (w / autoWeightSum) * remaining : 0 };
+  });
+}
+
+/**
  * Given per-activation budget and platform splits (%),
  * compute per-platform USD amounts for a single activation.
  * Skips disabled platforms (0%).
@@ -109,8 +138,9 @@ function buildPlan(state) {
     if (pct > 0) activeSplits[p] = pct;
   }
 
-  // Weight budgets by asset type
-  const weightedActivations = calcActivationBudgets(activations, totalBudget);
+  // Budget per post: locked posts keep their amount, the rest share the
+  // remainder by asset weight (see computeActivationBudgets).
+  const weightedActivations = computeActivationBudgets(activations, totalBudget);
 
   const rows = [];
   const subtotals = []; // per activation

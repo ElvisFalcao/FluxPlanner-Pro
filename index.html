@@ -358,6 +358,12 @@
           Add Activation
         </button>
 
+        <div class="flex items-center gap-3 px-5 py-3 bg-card border border-borderCol rounded-xl mt-1 text-[0.9rem] text-textSec">
+          <span>Total Allocated:</span>
+          <span id="activationBudgetTotal" class="font-extrabold text-[1.1rem] text-textPri">$0.00</span>
+          <span id="activationBudgetWarning" class="ml-auto text-[0.85rem] text-amberAccent hidden"></span>
+        </div>
+
         <div class="flex justify-between items-center pt-8 border-t border-borderCol mt-8">
           <button class="btn btn-ghost" onclick="goToStep(1)">← Back</button>
           <button class="btn btn-primary" onclick="validateAndGoStep(3)">
