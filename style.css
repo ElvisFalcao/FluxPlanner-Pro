@@ -269,11 +269,33 @@ body::before {
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── RESPONSIVE ────────────────────────────────────────────── */
+/* Momentum scrolling for the wide budget table on touch devices */
+.overflow-x-auto{-webkit-overflow-scrolling:touch;}
+
 @media(max-width:768px){
   .platform-split-row{grid-template-columns:1fr 1fr;}
   .split-slider-wrapper{grid-column:1/-1;}
   .step-label{display:none;}
 }
+
+@media(max-width:640px){
+  /* More usable width: tighten the wizard header + main gutters */
+  #appWrapper header > div{padding-left:16px;padding-right:16px;}
+  #appWrapper main{padding-left:16px;padding-right:16px;}
+  /* Scale the large step headings down so they don't dominate small screens */
+  .step-panel h1,.step-panel h2{font-size:1.55rem;line-height:1.2;}
+  /* Comfortable card + table density */
+  .activation-card{padding:16px;}
+  .budget-table{font-size:.8rem;}
+  .budget-table th,.budget-table td{padding:10px 9px;}
+  /* Bigger tap targets for the lock toggles */
+  .lock-btn{min-width:40px;min-height:36px;}
+}
+
 @media(max-width:480px){
   .summary-card .summary-value{font-size:1.2rem;}
+  .step-btn{padding:8px 10px;}
+  .btn{padding:10px 14px;}
+  /* Dashboard plan cards: allow narrower so they don't overflow tiny phones */
+  #plansGrid{grid-template-columns:1fr!important;}
 }
