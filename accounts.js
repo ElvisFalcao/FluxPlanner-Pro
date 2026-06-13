@@ -17,6 +17,16 @@ function currentSessionType() {
   return (window.appSession && window.appSession.type) || null;
 }
 
+// The single admin = the owner's Google account.
+const ADMIN_EMAIL = 'denyfalcao008@gmail.com';
+function isAdmin() {
+  return currentSessionType() === 'google' &&
+    ((window.driveUserInfo && window.driveUserInfo.email) || '').toLowerCase() === ADMIN_EMAIL;
+}
+function _esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 function setSession(type, email) {
   window.appSession = { type, email: email || '' };
   updateDashboardChrome();
@@ -71,6 +81,10 @@ function updateDashboardChrome() {
   // Settings is for account users (avatar / password / connectors live there).
   const settingsBtn = document.getElementById('settingsBtn');
   if (settingsBtn) settingsBtn.style.display = (s.type === 'account') ? '' : 'none';
+
+  // Admin view only for the owner's Google account.
+  const adminBtn = document.getElementById('adminBtn');
+  if (adminBtn) adminBtn.style.display = isAdmin() ? '' : 'none';
 
   // Google Drive controls: the Google owner always; account users once connected.
   const driveVisible = (s.type === 'google') || (s.type === 'account' && window.driveConnected);
@@ -187,6 +201,7 @@ async function dbSavePlan(snapshot) {
   if (!uid) throw new Error('Not signed in');
   const { data, error } = await window.supabaseClient.from('plans').insert({
     user_id: uid,
+    owner_email: (u.user && u.user.email) || null,
     campaign_name: snapshot.campaignName || null,
     country: snapshot.country || null,
     total_budget: snapshot.totalBudget || null,
@@ -283,6 +298,7 @@ async function deletePlanRouted(id) {
 // tracking actual spend, or marking items complete.
 async function dbUpdatePlan(id, snapshot) {
   const { error } = await window.supabaseClient.from('plans').update({
+    owner_email: (window.appSession && window.appSession.email) || undefined,
     campaign_name: snapshot.campaignName || null,
     country: snapshot.country || null,
     total_budget: snapshot.totalBudget || null,
@@ -416,6 +432,80 @@ async function signOutEverywhere() {
 function connectDriveFromSettings() {
   if (typeof connectDriveOnly === 'function') connectDriveOnly();
   else _settingsMsg('Drive connect is unavailable.', 'error');
+}
+
+// ─── Admin (owner-only): see all account-users' plans ──────────────────────
+async function adminListAllPlans() {
+  const { data, error } = await window.supabaseClient.functions.invoke('admin-plans', {
+    method: 'POST',
+    headers: { 'x-google-token': window.accessToken || '' },
+  });
+  if (error) throw new Error((error && error.message) || 'Admin fetch failed');
+  return (data && data.plans) || [];
+}
+
+function openAdminView() {
+  if (!isAdmin()) return;
+  const m = document.getElementById('adminModal');
+  const body = document.getElementById('adminBody');
+  if (!m) return;
+  m.classList.remove('hidden');
+  if (body) body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">Loading all plans…</div>';
+  adminListAllPlans()
+    .then(renderAdminView)
+    .catch(err => { if (body) body.innerHTML = `<div style="padding:30px;color:#FF453A;">Could not load: ${_esc(err.message)}</div>`; });
+}
+
+function closeAdminView(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const m = document.getElementById('adminModal');
+  if (m) m.classList.add('hidden');
+}
+
+function renderAdminView(plans) {
+  const body = document.getElementById('adminBody');
+  if (!body) return;
+  plans = plans || [];
+
+  const users = new Set();
+  let totalBudget = 0, totalSpent = 0, totalRows = 0, completeRows = 0;
+  plans.forEach(p => {
+    if (p.owner_email) users.add(p.owner_email);
+    totalBudget += Number(p.total_budget || 0);
+    const rows = ((p.data && p.data.planData && p.data.planData.rows) || []).filter(r => !r._isSubtotal);
+    rows.forEach(r => { totalRows++; totalSpent += parseFloat(r.actualSpend) || 0; if (r.complete) completeRows++; });
+  });
+  const compPct = totalRows ? Math.round((completeRows / totalRows) * 100) : 0;
+
+  const stats = [['Users', users.size], ['Plans', plans.length], ['Total Budget', fmtUSD(totalBudget)], ['Spent', fmtUSD(totalSpent)], ['Completion', compPct + '%']];
+  const statCards = stats.map(s =>
+    `<div class="summary-card" style="--accent-color:var(--primary)"><div class="summary-label">${s[0]}</div><div class="summary-value">${s[1]}</div></div>`).join('');
+
+  const rowsHtml = plans.map(p => {
+    const rows = ((p.data && p.data.planData && p.data.planData.rows) || []).filter(r => !r._isSubtotal);
+    let spent = 0, comp = 0;
+    rows.forEach(r => { spent += parseFloat(r.actualSpend) || 0; if (r.complete) comp++; });
+    const cpct = rows.length ? Math.round((comp / rows.length) * 100) : 0;
+    const cd = (typeof COUNTRY_DATA !== 'undefined' && COUNTRY_DATA[p.country]) || {};
+    return `<tr>
+      <td>${_esc(p.owner_email || '—')}</td>
+      <td>${_esc(p.campaign_name || 'Untitled')}</td>
+      <td style="white-space:nowrap;">${cd.flag || ''} ${_esc(cd.name || p.country || '')}</td>
+      <td style="text-align:right;">${fmtUSD(Number(p.total_budget || 0))}</td>
+      <td style="text-align:right;">${fmtUSD(spent)}</td>
+      <td style="text-align:center;">${cpct}%</td>
+      <td style="color:var(--text-muted);white-space:nowrap;">${_formatSavedDate(p.updated_at || p.created_at)}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3" style="margin-bottom:20px;">${statCards}</div>
+    <div style="overflow-x:auto;">
+      <table class="budget-table" style="min-width:720px;">
+        <thead><tr><th>Owner</th><th>Campaign</th><th>Country</th><th>Budget</th><th>Spent</th><th>Done</th><th>Updated</th></tr></thead>
+        <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No plans yet.</td></tr>'}</tbody>
+      </table>
+    </div>`;
 }
 
 async function deleteAccount() {

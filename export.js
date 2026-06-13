@@ -248,7 +248,7 @@ function initGapiClient(callback) {
 function initTokenClient() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: oauthClientId,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'email profile https://www.googleapis.com/auth/drive.file',
     callback: (tokenResponse) => {
       if (tokenResponse.error) {
         // A silent (auto) attempt that needs user interaction is normal on a
