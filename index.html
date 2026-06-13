@@ -191,7 +191,7 @@
             <span id="dashboardUserEmail" style="font-size:0.82rem;color:#CBD2DE;">Loading…</span>
           </div>
           <!-- Admin (owner's Google account only) -->
-          <button id="adminBtn" onclick="openAdminView()" title="Admin — all users' plans"
+          <button id="adminBtn" onclick="showAdminScreen()" title="Admin — users & plans"
                   style="display:none;align-items:center;gap:6px;background:rgba(252,163,17,0.15);border:1px solid rgba(252,163,17,0.4);
                          color:#FCA311;border-radius:8px;padding:7px 12px;font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all 0.2s;"
                   onmouseenter="this.style.background='rgba(252,163,17,0.28)';"
@@ -613,24 +613,31 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
-       ADMIN MODAL (owner only) — all account users' plans
+       ADMIN PAGE (owner / admins) — users & plans
   ════════════════════════════════════════════════════════════════════════ -->
-  <div id="adminModal" class="modal-overlay hidden" onclick="closeAdminView(event)">
-    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:920px;">
-      <button class="modal-close" onclick="closeAdminView()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <div class="modal-header">
-        <div class="modal-icon" style="background:rgba(252,163,17,0.12);border:1px solid rgba(252,163,17,0.25);color:#FCA311;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  <div id="adminScreen" style="display:none;flex-direction:column;min-height:100vh;background:#000000;">
+    <header style="background:rgba(10,16,32,0.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;z-index:100;">
+      <div style="max-width:1200px;margin:0 auto;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4z" stroke="#FCA311" stroke-width="2" stroke-linejoin="round"/></svg>
+          <div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:700;color:#FFFFFF;">Admin Console</div>
+            <div style="font-size:0.65rem;color:#7C8597;letter-spacing:0.05em;text-transform:uppercase;">Users &amp; campaigns</div>
+          </div>
         </div>
-        <div>
-          <h3 class="modal-title">Admin — all plans</h3>
-          <p class="modal-subtitle">Every account user's campaigns across the platform.</p>
-        </div>
+        <button onclick="showDashboard()" class="btn btn-outline btn-sm">← Back to dashboard</button>
       </div>
-      <div id="adminBody"></div>
-    </div>
+      <div style="max-width:1200px;margin:0 auto;padding:0 24px 14px;display:flex;gap:8px;">
+        <button id="adminTab-users" onclick="adminShowTab('users')"
+          style="background:rgba(252,163,17,0.15);color:#FCA311;border:1px solid #FCA311;border-radius:8px;padding:8px 18px;font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;">Users</button>
+        <button id="adminTab-plans" onclick="adminShowTab('plans')"
+          style="background:transparent;color:#CBD2DE;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 18px;font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;">All plans</button>
+      </div>
+    </header>
+    <main style="flex:1;max-width:1200px;margin:0 auto;width:100%;padding:32px 24px;">
+      <div id="adminUsersBody"></div>
+      <div id="adminPlansBody" style="display:none;"></div>
+    </main>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════

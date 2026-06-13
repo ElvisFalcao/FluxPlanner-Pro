@@ -17,9 +17,12 @@ function currentSessionType() {
   return (window.appSession && window.appSession.type) || null;
 }
 
-// The single admin = the owner's Google account.
+// Admin is role-based (profiles.is_admin), resolved at login into window.isAdminUser.
+// The owner's Google email is always treated as admin (immediate, before lookup).
 const ADMIN_EMAIL = 'denyfalcao008@gmail.com';
+window.isAdminUser = false;
 function isAdmin() {
+  if (window.isAdminUser) return true;
   return currentSessionType() === 'google' &&
     ((window.driveUserInfo && window.driveUserInfo.email) || '').toLowerCase() === ADMIN_EMAIL;
 }
@@ -126,6 +129,7 @@ async function accountSignUp() {
 
   setSession('account', email);
   await refreshAccountUser();
+  await logAccountProfile();
   await migrateGuestPlansToAccount();
   showDashboard();
 }
@@ -142,6 +146,7 @@ async function accountSignIn() {
 
   setSession('account', email);
   await refreshAccountUser();
+  await logAccountProfile();
   showDashboard();
 }
 
@@ -165,6 +170,7 @@ async function appSignOut() {
   window.appSession = null;
   window.accountUser = null;
   window.driveConnected = false;
+  window.isAdminUser = false;
   showLoginScreen();
   if (typeof showToast === 'function') showToast('Signed out', 'success');
 }
@@ -178,6 +184,7 @@ async function initSession() {
       if (data && data.session) {
         window.accountUser = data.session.user;
         setSession('account', data.session.user && data.session.user.email);
+        await logAccountProfile();
         showDashboard();
         return;
       }
@@ -423,7 +430,7 @@ async function changePassword() {
 
 async function signOutEverywhere() {
   try { await window.supabaseClient.auth.signOut({ scope: 'global' }); } catch (_) {}
-  window.appSession = null; window.accountUser = null; window.driveConnected = false;
+  window.appSession = null; window.accountUser = null; window.driveConnected = false; window.isAdminUser = false;
   closeSettings();
   showLoginScreen();
   if (typeof showToast === 'function') showToast('Signed out on all devices', 'success');
@@ -434,39 +441,124 @@ function connectDriveFromSettings() {
   else _settingsMsg('Drive connect is unavailable.', 'error');
 }
 
-// ─── Admin (owner-only): see all account-users' plans ──────────────────────
-async function adminListAllPlans() {
-  const { data, error } = await window.supabaseClient.functions.invoke('admin-plans', {
-    method: 'POST',
-    headers: { 'x-google-token': window.accessToken || '' },
-  });
-  if (error) throw new Error((error && error.message) || 'Admin fetch failed');
-  return (data && data.plans) || [];
+// ─── Login logging into profiles ───────────────────────────────────────────
+async function logAccountProfile() {
+  try {
+    const u = window.accountUser;
+    if (!u || !u.email) return;
+    await window.supabaseClient.from('profiles').upsert({
+      email: u.email,
+      display_name: (u.user_metadata && u.user_metadata.display_name) || null,
+      provider: 'email', user_id: u.id, last_seen_at: new Date().toISOString(),
+    }, { onConflict: 'email' });
+    const { data } = await window.supabaseClient.from('profiles').select('is_admin').eq('email', u.email).maybeSingle();
+    window.isAdminUser = !!(data && data.is_admin);
+  } catch (_) { window.isAdminUser = false; }
 }
 
-function openAdminView() {
+async function trackGoogleLogin() {
+  try {
+    const res = await fetch(window.SUPABASE_URL + '/functions/v1/track-login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', 'apikey': window.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY, 'x-google-token': window.accessToken || '',
+      },
+      body: JSON.stringify({ name: (window.driveUserInfo && window.driveUserInfo.name) || null }),
+    });
+    const b = await res.json().catch(() => ({}));
+    window.isAdminUser = !!(b && b.is_admin);
+  } catch (_) {}
+  if (typeof updateDashboardChrome === 'function') updateDashboardChrome();
+}
+
+// ─── Admin API (owner / admins) ─────────────────────────────────────────────
+async function adminCall(action, payload) {
+  const headers = {
+    'Content-Type': 'application/json', 'apikey': window.SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
+  };
+  if (currentSessionType() === 'google') {
+    headers['x-google-token'] = window.accessToken || '';
+  } else {
+    try { const { data: s } = await window.supabaseClient.auth.getSession(); if (s && s.session) headers['Authorization'] = 'Bearer ' + s.session.access_token; } catch (_) {}
+  }
+  const res = await fetch(window.SUPABASE_URL + '/functions/v1/admin', { method: 'POST', headers, body: JSON.stringify({ action, ...(payload || {}) }) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('Admin error ' + res.status));
+  return body;
+}
+
+// ─── Admin page ─────────────────────────────────────────────────────────────
+function showAdminScreen() {
   if (!isAdmin()) return;
-  const m = document.getElementById('adminModal');
-  const body = document.getElementById('adminBody');
-  if (!m) return;
-  m.classList.remove('hidden');
-  if (body) body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">Loading all plans…</div>';
-  adminListAllPlans()
-    .then(renderAdminView)
-    .catch(err => { if (body) body.innerHTML = `<div style="padding:30px;color:#FF453A;">Could not load: ${_esc(err.message)}</div>`; });
+  ['loginScreen', 'dashboardScreen', 'appWrapper'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+  const s = document.getElementById('adminScreen'); if (s) s.style.display = 'flex';
+  adminShowTab('users');
+  loadAdminUsers();
+  loadAdminPlans();
 }
 
-function closeAdminView(event) {
-  if (event && event.target !== event.currentTarget) return;
-  const m = document.getElementById('adminModal');
-  if (m) m.classList.add('hidden');
+function adminShowTab(which) {
+  ['users', 'plans'].forEach(t => {
+    const btn = document.getElementById('adminTab-' + t);
+    const body = document.getElementById(t === 'users' ? 'adminUsersBody' : 'adminPlansBody');
+    const on = (t === which);
+    if (btn) {
+      btn.style.background = on ? 'rgba(252,163,17,0.15)' : 'transparent';
+      btn.style.color = on ? '#FCA311' : '#CBD2DE';
+      btn.style.borderColor = on ? '#FCA311' : 'rgba(255,255,255,0.12)';
+    }
+    if (body) body.style.display = on ? '' : 'none';
+  });
 }
 
-function renderAdminView(plans) {
-  const body = document.getElementById('adminBody');
-  if (!body) return;
+function loadAdminUsers() {
+  const el = document.getElementById('adminUsersBody');
+  if (el) el.innerHTML = '<div style="padding:30px;color:var(--text-muted);">Loading users…</div>';
+  adminCall('list_users').then(r => renderAdminUsers(r.users || []))
+    .catch(e => { if (el) el.innerHTML = `<div style="padding:24px;color:#FF453A;">${_esc(e.message)}</div>`; });
+}
+
+function loadAdminPlans() {
+  const el = document.getElementById('adminPlansBody');
+  if (el) el.innerHTML = '<div style="padding:30px;color:var(--text-muted);">Loading plans…</div>';
+  adminCall('list_plans').then(r => renderAdminPlans(r.plans || []))
+    .catch(e => { if (el) el.innerHTML = `<div style="padding:24px;color:#FF453A;">${_esc(e.message)}</div>`; });
+}
+
+function _adminDate(d) { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return '—'; } }
+
+function renderAdminUsers(users) {
+  const el = document.getElementById('adminUsersBody');
+  if (!el) return;
+  const rows = (users || []).map(u => {
+    const isEmail = u.provider === 'email';
+    const e = _esc(u.email);
+    return `<tr>
+      <td>${e}</td>
+      <td>${_esc(u.display_name || '—')}</td>
+      <td><span class="platform-tag">${u.provider === 'google' ? '🔵 Google' : '✉️ Email'}</span></td>
+      <td style="text-align:center;">${u.plan_count || 0}</td>
+      <td style="text-align:center;">${u.is_admin ? '<span style="color:#FCA311;font-weight:700;">Admin</span>' : '<span style="color:var(--text-muted);">User</span>'}</td>
+      <td style="color:var(--text-muted);white-space:nowrap;">${_adminDate(u.created_at)}</td>
+      <td style="white-space:nowrap;display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="adminToggleAdmin('${e}', ${u.is_admin ? 'true' : 'false'})">${u.is_admin ? 'Remove admin' : 'Make admin'}</button>
+        ${isEmail ? `<button class="btn btn-outline btn-sm" onclick="adminResetPassword('${e}')">Set password</button>` : ''}
+        <button class="btn btn-sm" style="background:rgba(255,69,58,0.12);border:1px solid rgba(255,69,58,0.35);color:#FF453A;" onclick="adminRemoveUser('${e}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="budget-table" style="min-width:860px;">
+    <thead><tr><th>Email</th><th>Name</th><th>Login</th><th>Plans</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No users yet.</td></tr>'}</tbody>
+  </table></div>`;
+}
+
+function renderAdminPlans(plans) {
+  const el = document.getElementById('adminPlansBody');
+  if (!el) return;
   plans = plans || [];
-
   const users = new Set();
   let totalBudget = 0, totalSpent = 0, totalRows = 0, completeRows = 0;
   plans.forEach(p => {
@@ -476,11 +568,8 @@ function renderAdminView(plans) {
     rows.forEach(r => { totalRows++; totalSpent += parseFloat(r.actualSpend) || 0; if (r.complete) completeRows++; });
   });
   const compPct = totalRows ? Math.round((completeRows / totalRows) * 100) : 0;
-
-  const stats = [['Users', users.size], ['Plans', plans.length], ['Total Budget', fmtUSD(totalBudget)], ['Spent', fmtUSD(totalSpent)], ['Completion', compPct + '%']];
-  const statCards = stats.map(s =>
-    `<div class="summary-card" style="--accent-color:var(--primary)"><div class="summary-label">${s[0]}</div><div class="summary-value">${s[1]}</div></div>`).join('');
-
+  const stats = [['Users', users.size], ['Plans', plans.length], ['Budget', fmtUSD(totalBudget)], ['Spent', fmtUSD(totalSpent)], ['Completion', compPct + '%']];
+  const statCards = stats.map(s => `<div class="summary-card" style="--accent-color:var(--primary)"><div class="summary-label">${s[0]}</div><div class="summary-value">${s[1]}</div></div>`).join('');
   const rowsHtml = plans.map(p => {
     const rows = ((p.data && p.data.planData && p.data.planData.rows) || []).filter(r => !r._isSubtotal);
     let spent = 0, comp = 0;
@@ -497,15 +586,34 @@ function renderAdminView(plans) {
       <td style="color:var(--text-muted);white-space:nowrap;">${_formatSavedDate(p.updated_at || p.created_at)}</td>
     </tr>`;
   }).join('');
-
-  body.innerHTML = `
+  el.innerHTML = `
     <div class="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3" style="margin-bottom:20px;">${statCards}</div>
-    <div style="overflow-x:auto;">
-      <table class="budget-table" style="min-width:720px;">
-        <thead><tr><th>Owner</th><th>Campaign</th><th>Country</th><th>Budget</th><th>Spent</th><th>Done</th><th>Updated</th></tr></thead>
-        <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No plans yet.</td></tr>'}</tbody>
-      </table>
-    </div>`;
+    <div style="overflow-x:auto;"><table class="budget-table" style="min-width:720px;">
+      <thead><tr><th>Owner</th><th>Campaign</th><th>Country</th><th>Budget</th><th>Spent</th><th>Done</th><th>Updated</th></tr></thead>
+      <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No plans yet.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+function adminToggleAdmin(email, currently) {
+  adminCall('set_admin', { email: email, isAdmin: !currently })
+    .then(() => { showToast('✅ Role updated', 'success'); loadAdminUsers(); })
+    .catch(e => showToast(e.message, 'error'));
+}
+
+function adminResetPassword(email) {
+  const pw = prompt('Set a new password for ' + email + ' (min 6 characters):');
+  if (!pw) return;
+  if (pw.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+  adminCall('set_password', { email: email, password: pw })
+    .then(() => showToast('✅ Password updated', 'success'))
+    .catch(e => showToast(e.message, 'error'));
+}
+
+function adminRemoveUser(email) {
+  if (!confirm('Delete ' + email + ' and all their plans? This cannot be undone.')) return;
+  adminCall('delete_user', { email: email })
+    .then(() => { showToast('🗑 User deleted', 'success'); loadAdminUsers(); loadAdminPlans(); })
+    .catch(e => showToast(e.message, 'error'));
 }
 
 async function deleteAccount() {

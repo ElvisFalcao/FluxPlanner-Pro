@@ -304,6 +304,7 @@ function finishSignIn() {
     .then(info => {
       window.driveUserInfo = info;
       if (info && info.email) showToast(`✅ Signed in as ${info.email}`, 'success');
+      if (typeof trackGoogleLogin === 'function') trackGoogleLogin();   // record + resolve admin role
       showDashboard();
     })
     .catch(() => { showDashboard(); });
@@ -384,6 +385,7 @@ function signOutGoogle() {
   accessToken = null;
   clearCachedToken();
   window.appSession = null;
+  window.isAdminUser = false;
   window.driveUserInfo = null;
   // Reset the Drive folder ID cache in plans.js
   if (typeof driveFolderId !== 'undefined') { driveFolderId = null; }
