@@ -193,14 +193,21 @@ async function loadPlanById(fileId) {
  * Delete a plan from Drive (moves to trash).
  */
 async function deletePlanFromDrive(fileId) {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/trash`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${window.accessToken}` },
+  // Drive API v3: move to trash via PATCH { trashed: true }. The v2 ".../trash"
+  // POST endpoint doesn't exist in v3, so it fails the request entirely
+  // (surfacing as "Failed to fetch" in the browser).
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${window.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ trashed: true }),
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error?.message || 'Failed to delete plan');
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err.error && err.error.message) || 'Failed to delete plan');
   }
 }
 
