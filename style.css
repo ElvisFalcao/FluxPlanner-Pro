@@ -214,11 +214,14 @@ body::before {
 .budget-table tr.grand-total-row td{background:rgba(52,211,153,.06)!important;font-weight:800;border-top:2px solid rgba(52,211,153,.3);color:var(--green);}
 
 /* ── PLATFORM & ASSET TAGS ─────────────────────────────────── */
-.platform-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:.75rem;font-weight:600;}
-.platform-tag.tiktok{background:rgba(255,0,79,.1);color:#FF6B6B;border:1px solid rgba(255,0,79,.2);}
-.platform-tag.youtube{background:rgba(255,0,0,.1);color:#FF6B6B;border:1px solid rgba(255,0,0,.2);}
-.platform-tag.instagram{background:rgba(225,48,108,.1);color:#F06292;border:1px solid rgba(225,48,108,.2);}
-.platform-tag.facebook{background:rgba(24,119,242,.1);color:#64B5F6;border:1px solid rgba(24,119,242,.2);}
+/* Platform chips are neutral — the emoji + name carry the brand; colour lives
+   only on the small platform dots. Keeps the palette clean (black/gold/white). */
+.platform-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:.75rem;font-weight:600;
+  background:rgba(229,229,229,0.06);color:var(--text-sec);border:1px solid var(--border);}
+.platform-tag.tiktok,
+.platform-tag.youtube,
+.platform-tag.instagram,
+.platform-tag.facebook{background:rgba(229,229,229,0.06);color:var(--text-sec);border:1px solid var(--border);}
 .asset-tag{font-size:.72rem;padding:2px 8px;border-radius:20px;font-weight:600;}
 .asset-tag.video,
 .asset-tag.animated{background:rgba(252,163,17,.15);color:#FFCF6B;}
