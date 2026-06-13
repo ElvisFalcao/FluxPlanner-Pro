@@ -65,13 +65,14 @@
     <div style="position:absolute;inset:0;pointer-events:none;
                 background:radial-gradient(ellipse 55% 40% at 50% 40%, rgba(252,163,17,0.12) 0%, transparent 70%);"></div>
 
-    <!-- Centering wrapper: flex-column + margin:auto on the card centers it when
-         it fits, and falls back to top-aligned + scrollable when the window is short -->
-    <div style="position:relative;z-index:1;min-height:100%;box-sizing:border-box;
-                display:flex;flex-direction:column;padding:24px;">
+    <!-- Centering wrapper: align-items centers horizontally; margin-block:auto on
+         the card centers it vertically when it fits and falls back to top-aligned
+         + scrollable when the window is short -->
+    <div style="position:relative;z-index:1;width:100%;min-height:100%;box-sizing:border-box;
+                display:flex;flex-direction:column;align-items:center;padding:24px;">
     <!-- Card -->
     <div style="position:relative;z-index:1;background:#14213D;border:1px solid rgba(255,255,255,0.09);
-                border-radius:24px;padding:48px 44px;max-width:420px;width:100%;margin:auto;text-align:center;
+                border-radius:24px;padding:48px 44px;width:min(100%,420px);margin-block:auto;text-align:center;
                 box-shadow:0 24px 80px rgba(0,0,0,0.5);">
 
       <!-- Logo -->
