@@ -278,6 +278,7 @@ function finishSignIn() {
   updateGDriveUI(true);
   closeGDriveModal();
 
+  // showDashboard() loads the plans itself, so we just need the profile first.
   fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -286,16 +287,8 @@ function finishSignIn() {
       window.driveUserInfo = info;
       if (info && info.email) showToast(`✅ Signed in as ${info.email}`, 'success');
       showDashboard();
-      listPlansFromDrive()
-        .then(plans => renderDashboard(plans))
-        .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
     })
-    .catch(() => {
-      showDashboard();
-      listPlansFromDrive()
-        .then(plans => renderDashboard(plans))
-        .catch(() => renderDashboard([]));
-    });
+    .catch(() => { showDashboard(); });
 }
 
 function requestGoogleToken() {

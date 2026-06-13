@@ -60,7 +60,7 @@ function validateStep1() {
   window.appState.country = country;
   window.appState.totalBudget = budget;
   window.appState.exchangeRate = rate;
-  window.appState.objective = document.getElementById('campaignObjective').value;
+  // Objective is now derived per platform automatically (PLATFORM_OBJECTIVES).
   return true;
 }
 
@@ -160,22 +160,48 @@ function renderActivation(act) {
             onclick="selectAsset('${act.id}', 'Static', this)">🖼 Static</button>
         </div>
       </div>
-      <div class="form-group">
-        <label>Ad Objective (optional override)</label>
-        <select id="obj-${act.id}">
-          <option value="">Use campaign default</option>
-          <option value="Video Views">Video Views</option>
-          <option value="Reach">Reach</option>
-          <option value="Brand Awareness">Brand Awareness</option>
-          <option value="Conversions">Conversions</option>
-          <option value="Traffic">Traffic</option>
-          <option value="Engagement">Engagement</option>
-        </select>
-      </div>
     </div>
+    <div class="runson" id="runson-${act.id}"></div>
   `;
 
   list.appendChild(card);
+  renderRunsOn(act.id);
+}
+
+/**
+ * Platforms a given asset type can run on in the current country
+ * (asset eligibility ∩ country availability).
+ */
+function eligiblePlatformsFor(assetType) {
+  const base = (typeof ASSET_PLATFORM_ELIGIBILITY !== 'undefined' && ASSET_PLATFORM_ELIGIBILITY[assetType])
+    || PLATFORMS.map(p => p.id);
+  const countryData = COUNTRY_DATA[window.appState.country] || {};
+  return base.filter(id => !(id === 'TikTok' && countryData.tiktokAllowed === false));
+}
+
+/**
+ * Render the read-only "Runs on" preview under an activation card, showing the
+ * platforms this post will automatically fan out to and each one's objective.
+ */
+function renderRunsOn(actId) {
+  const act = window.appState.activations.find(a => a.id === actId);
+  const el  = document.getElementById(`runson-${actId}`);
+  if (!act || !el) return;
+
+  const ids = eligiblePlatformsFor(act.assetType);
+  if (ids.length === 0) {
+    el.innerHTML = `<span class="runson-label">Runs on:</span> <span class="runson-none">No platforms available for this asset/country</span>`;
+    return;
+  }
+
+  const chips = ids.map(id => {
+    const p   = PLATFORMS.find(pp => pp.id === id) || { cssClass: '', icon: '', label: id };
+    const obj = (typeof PLATFORM_OBJECTIVES !== 'undefined' && PLATFORM_OBJECTIVES[id]) || '';
+    return `<span class="platform-tag ${p.cssClass}">${p.icon} ${p.label}` +
+           (obj ? `<span class="runson-obj">${obj}</span>` : '') + `</span>`;
+  }).join('');
+
+  el.innerHTML = `<span class="runson-label">Runs on (${ids.length}):</span> ${chips}`;
 }
 
 function selectAsset(actId, type, btn) {
@@ -183,9 +209,10 @@ function selectAsset(actId, type, btn) {
   const container = document.getElementById(`asset-${actId}`);
   container.querySelectorAll('.asset-pill').forEach(p => p.classList.remove('selected'));
   btn.classList.add('selected');
-  // Update state
+  // Update state + refresh the auto platform preview
   const act = window.appState.activations.find(a => a.id === actId);
   if (act) act.assetType = type;
+  renderRunsOn(actId);
 }
 
 function removeActivation(id) {
@@ -203,7 +230,7 @@ function collectActivationData() {
   for (const act of window.appState.activations) {
     act.name = document.getElementById(`name-${act.id}`)?.value?.trim() || act.name;
     act.date = document.getElementById(`date-${act.id}`)?.value || act.date;
-    act.objective = document.getElementById(`obj-${act.id}`)?.value || '';
+    // Objective is derived per-platform automatically (see PLATFORM_OBJECTIVES).
   }
 }
 

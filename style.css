@@ -154,6 +154,12 @@ body::before {
 .activation-delete:hover{background:rgba(255,69,58,.1);color:var(--red);}
 .activation-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
 
+/* ── RUNS-ON PREVIEW (auto platform fan-out) ───────────────── */
+.runson{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+.runson-label{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);}
+.runson-obj{margin-left:6px;padding-left:6px;border-left:1px solid currentColor;opacity:.75;font-weight:500;}
+.runson-none{font-size:.82rem;color:var(--amber);font-weight:500;}
+
 /* ── PLATFORM SPLITS ───────────────────────────────────────── */
 .platform-split-row{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px 20px;display:grid;grid-template-columns:180px 1fr 140px 130px;align-items:center;gap:16px;transition:var(--t);}
 .platform-split-row.disabled{opacity:.4;pointer-events:none;}

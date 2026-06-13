@@ -366,9 +366,24 @@ function showDashboard() {
     }
   }
 
-  // Show spinner while plans load
-  const spinner = document.getElementById('plansSpinner');
-  if (spinner) spinner.classList.remove('hidden');
+  // Show spinner, then (re)load the plans. Doing the fetch HERE means every
+  // entry point into the dashboard works — including clicking the logo to come
+  // back from the wizard, which previously left the spinner running forever.
+  const spinner    = document.getElementById('plansSpinner');
+  const emptyState = document.getElementById('plansEmptyState');
+  const grid       = document.getElementById('plansGrid');
+  if (spinner)    spinner.classList.remove('hidden');
+  if (emptyState) emptyState.classList.add('hidden');
+  if (grid)       grid.innerHTML = '';
+
+  if (window.accessToken) {
+    listPlansFromDrive()
+      .then(plans => renderDashboard(plans))
+      .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
+  } else {
+    // Not signed in — nothing to load; clear the spinner and show empty state.
+    renderDashboard([]);
+  }
 }
 
 /**

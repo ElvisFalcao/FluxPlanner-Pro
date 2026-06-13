@@ -54,11 +54,12 @@ const COUNTRY_DATA = {
     flag: '🇦🇴',
     tiktokAllowed: false,
     tiktokNote: 'TikTok Ads are not available in Angola. Budget redistributed to other platforms.',
+    // Facebook skews more popular than Instagram in Angola.
     splits: {
       TikTok:    0,
-      Instagram: 35,
-      YouTube:   35,
-      Facebook:  30,
+      Instagram: 30,
+      YouTube:   30,
+      Facebook:  40,
     },
   },
   ZM: {
@@ -121,6 +122,26 @@ const ASSET_WEIGHTS = {
   Video:            1.0,
   'Animated Static': 0.65,
   Static:           0.45,
+};
+
+// Which platforms each asset type can run on. A post is created ONCE and
+// automatically fanned out to these platforms (intersected with the platforms
+// available in the selected country). Video runs everywhere; an animated clip
+// works as short-form video on TikTok/IG/FB but not long-form YouTube; a plain
+// static image only fits the feed placements (Instagram / Facebook).
+const ASSET_PLATFORM_ELIGIBILITY = {
+  Video:             ['TikTok', 'Instagram', 'YouTube', 'Facebook'],
+  'Animated Static': ['TikTok', 'Instagram', 'Facebook'],
+  Static:            ['Instagram', 'Facebook'],
+};
+
+// Default ad objective per platform — assigned automatically to each generated
+// line item (no manual selection needed).
+const PLATFORM_OBJECTIVES = {
+  TikTok:    'Video Views',
+  YouTube:   'Video Views',
+  Instagram: 'Engagement',
+  Facebook:  'Reach',
 };
 
 // Days of week helper

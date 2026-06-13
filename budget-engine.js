@@ -118,16 +118,29 @@ function buildPlan(state) {
   let grandTotalActual = 0;
 
   for (const act of weightedActivations) {
-    const platformAmounts = calcPlatformAmounts(act.budgetUSD, activeSplits);
+    // A post fans out only to the platforms its asset type supports, intersected
+    // with the platforms active in this country. The slider % are re-normalized
+    // across just those eligible platforms (activation-first model).
+    const eligible = (typeof ASSET_PLATFORM_ELIGIBILITY !== 'undefined' &&
+                      ASSET_PLATFORM_ELIGIBILITY[act.assetType]) ||
+                     PLATFORMS.map(p => p.id);
+    const actSplits = {};
+    for (const pid of eligible) {
+      if (activeSplits[pid] !== undefined) actSplits[pid] = activeSplits[pid];
+    }
+
+    const platformAmounts = calcPlatformAmounts(act.budgetUSD, actSplits);
     const activationRows = [];
     let subtotalBudget = 0;
 
-    const platformList = PLATFORMS.filter(p => activeSplits[p.id] !== undefined);
+    const platformList = PLATFORMS.filter(p => actSplits[p.id] !== undefined);
 
     for (const platform of platformList) {
       const budgetUSD = platformAmounts[platform.id] ?? 0;
       const zarValue = usdToZar(budgetUSD, exchangeRate);
       const duration = act.durations?.[platform.id] ?? DEFAULT_DURATIONS[platform.id] ?? 7;
+      const platformObjective = (typeof PLATFORM_OBJECTIVES !== 'undefined' &&
+                                 PLATFORM_OBJECTIVES[platform.id]) || act.objective || objective;
 
       const row = {
         date: formatDateDMY(act.date),
@@ -139,7 +152,7 @@ function buildPlan(state) {
         country: countryName,
         zarValue,
         duration,
-        objective: act.objective || objective,
+        objective: platformObjective,
         complete: false,
         actualSpend: '',
         difference: budgetUSD, // initially = budget (no actual spend yet)
