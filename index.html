@@ -225,11 +225,16 @@
 
     <!-- Dashboard Body -->
     <main style="flex:1;max-width:1200px;margin:0 auto;width:100%;padding:40px 24px;">
-      <div style="margin-bottom:32px;">
+      <div style="margin-bottom:24px;">
         <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;
-                   color:#FFFFFF;margin:0 0 6px;">My Plans</h1>
-        <p style="font-size:0.92rem;color:#CBD2DE;margin:0;">Click any plan to open it, or start a new campaign above.</p>
+                   color:#FFFFFF;margin:0 0 6px;">Overview</h1>
+        <p style="font-size:0.92rem;color:#CBD2DE;margin:0;">A snapshot of all your campaigns.</p>
       </div>
+
+      <!-- Overview stat cards (populated by renderOverview) -->
+      <div id="overviewSection"
+           class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-9"
+           style="display:none;"></div>
 
       <!-- Guest banner — only shown when browsing without an account -->
       <div id="guestBanner" style="display:none;align-items:center;gap:16px;flex-wrap:wrap;
@@ -251,6 +256,12 @@
                 onmouseenter="this.style.transform='translateY(-1px)';" onmouseleave="this.style.transform='';">
           Create a free account
         </button>
+      </div>
+
+      <!-- My Plans heading -->
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px;">
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:700;color:#FFFFFF;margin:0;">My Plans</h2>
+        <span style="font-size:0.85rem;color:#7C8597;">Click any plan to open it</span>
       </div>
 
       <!-- Loading spinner -->

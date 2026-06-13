@@ -99,6 +99,25 @@ async function savePlanToDrive(snapshot) {
   return (await res.json()).id;
 }
 
+/**
+ * Update an existing plan file's contents in Drive (no new file).
+ */
+async function updatePlanInDrive(fileId, snapshot) {
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${window.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshot, null, 2),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || 'Failed to update plan in Drive');
+  }
+  return fileId;
+}
+
 // ─── List Plans ───────────────────────────────────────────────────────────────
 
 /**
@@ -207,10 +226,58 @@ function _formatSavedDate(isoString) {
  * Render the dashboard grid with plan cards.
  * Called after login and after auto-save.
  */
+/**
+ * Aggregate the user's plans into the login overview (totals, spend, completion).
+ */
+function renderOverview(plans) {
+  const el = document.getElementById('overviewSection');
+  if (!el) return;
+  plans = plans || [];
+
+  if (plans.length === 0) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  let totalBudget = 0, totalSpent = 0, totalRows = 0, completeRows = 0, fullyComplete = 0;
+  const countries = new Set();
+
+  plans.forEach(p => {
+    totalBudget += Number(p.totalBudget || (p.state && p.state.totalBudget) || 0);
+    if (p.country) countries.add(p.country);
+    const rows = ((p.planData && p.planData.rows) || []).filter(r => !r._isSubtotal);
+    let planComplete = 0;
+    rows.forEach(r => {
+      totalRows++;
+      totalSpent += parseFloat(r.actualSpend) || 0;
+      if (r.complete) { completeRows++; planComplete++; }
+    });
+    if (rows.length > 0 && planComplete === rows.length) fullyComplete++;
+  });
+
+  const remaining = totalBudget - totalSpent;
+  const completionPct = totalRows ? Math.round((completeRows / totalRows) * 100) : 0;
+
+  const cards = [
+    { label: 'Campaigns',  value: plans.length,            sub: `${fullyComplete} completed`,            color: 'var(--primary)' },
+    { label: 'Completion', value: completionPct + '%',     sub: `${completeRows}/${totalRows} items done`, color: 'var(--green)' },
+    { label: 'Total Budget', value: fmtUSD(totalBudget),   sub: `${countries.size} market${countries.size === 1 ? '' : 's'}`, color: 'var(--primary)' },
+    { label: 'Spent',      value: fmtUSD(totalSpent),      sub: totalBudget ? Math.round((totalSpent / totalBudget) * 100) + '% of budget' : '', color: 'var(--text-sec)' },
+    { label: 'Remaining',  value: fmtUSD(remaining),       sub: remaining >= 0 ? 'available' : 'over budget', color: remaining >= 0 ? 'var(--green)' : 'var(--red)' },
+  ];
+
+  el.innerHTML = cards.map(c => `
+    <div class="summary-card" style="--accent-color:${c.color}">
+      <div class="summary-label">${c.label}</div>
+      <div class="summary-value">${c.value}</div>
+      <div class="summary-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
 function renderDashboard(plans) {
   const grid       = document.getElementById('plansGrid');
   const emptyState = document.getElementById('plansEmptyState');
   const spinner    = document.getElementById('plansSpinner');
+
+  renderOverview(plans);
 
   if (spinner) spinner.classList.add('hidden');
 

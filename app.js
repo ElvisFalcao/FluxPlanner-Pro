@@ -16,6 +16,7 @@ window.appState = {
 };
 
 window.planData = null;
+window.currentPlanId = null;   // storage id of the open plan (null = new, unsaved)
 let activationCounter = 0;
 
 // Flat, monochrome lock icon (gold when locked, grey when open) — matches the
@@ -516,25 +517,48 @@ function generatePlan() {
   renderSummaryCards(plan, state);
   renderBudgetTable(plan, state);
 
-  // Auto-save for whichever session is active: Google Drive, Supabase DB,
-  // or (for guests) the browser. Routed by accounts.js.
+  // Save for whichever session is active. UPDATE the existing plan if we're
+  // editing one (no duplicates); otherwise CREATE it and remember its id.
   if (typeof currentSessionType === 'function' && currentSessionType()) {
-    const snapshot = {
-      id: crypto.randomUUID(),
-      savedAt: new Date().toISOString(),
-      campaignName: state.campaignName,
-      totalBudget: state.totalBudget,
-      country: state.country,
-      exchangeRate: state.exchangeRate,
-      state: JSON.parse(JSON.stringify(state)),
-      planData: JSON.parse(JSON.stringify(plan)),
-    };
+    const snapshot = buildSnapshot();
     const t = currentSessionType();
     const where = t === 'guest' ? 'in this browser' : (t === 'google' ? 'to Google Drive' : 'to your account');
-    Promise.resolve(savePlanRouted(snapshot))
-      .then(() => showToast(`✅ Plan saved ${where}`, 'success'))
-      .catch(err => showToast('Could not save plan: ' + err.message, 'error'));
+    if (window.currentPlanId && typeof updatePlanRouted === 'function') {
+      Promise.resolve(updatePlanRouted(window.currentPlanId, snapshot))
+        .then(() => showToast(`✅ Plan saved ${where}`, 'success'))
+        .catch(err => showToast('Could not save plan: ' + err.message, 'error'));
+    } else {
+      Promise.resolve(savePlanRouted(snapshot))
+        .then(id => { if (id) window.currentPlanId = id; showToast(`✅ Plan saved ${where}`, 'success'); })
+        .catch(err => showToast('Could not save plan: ' + err.message, 'error'));
+    }
   }
+}
+
+/** Build a plan snapshot from the current app state + computed plan data. */
+function buildSnapshot() {
+  const state = window.appState;
+  const plan = window.planData || {};
+  return {
+    id: window.currentSnapshotId || (window.currentSnapshotId = crypto.randomUUID()),
+    savedAt: new Date().toISOString(),
+    campaignName: state.campaignName,
+    totalBudget: state.totalBudget,
+    country: state.country,
+    exchangeRate: state.exchangeRate,
+    state: JSON.parse(JSON.stringify(state)),
+    planData: JSON.parse(JSON.stringify(plan)),
+  };
+}
+
+// Debounced save of in-place edits (actual spend / complete) to the open plan.
+let _persistTimer = null;
+function persistCurrentPlan() {
+  if (!window.currentPlanId || typeof updatePlanRouted !== 'function') return;
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    Promise.resolve(updatePlanRouted(window.currentPlanId, buildSnapshot())).catch(() => {});
+  }, 800);
 }
 
 function renderSummaryCards(plan, state) {
@@ -652,11 +676,13 @@ function onActualSpendChange(input, rowIdx) {
   if (diffCell) diffCell.innerHTML = `<span class="${diffClass}">${fmtUSD(diff)}</span>`;
 
   updateGrandTotalActual();
+  persistCurrentPlan();   // save the edit to the open plan (DB / Drive / browser)
 }
 
 function onCompleteChange(checkbox, rowIdx) {
   const dataRow = window.planData.rows.filter(r => !r._isSubtotal)[rowIdx];
   if (dataRow) dataRow.complete = checkbox.checked;
+  persistCurrentPlan();
 }
 
 function updateGrandTotalActual() {
@@ -695,6 +721,8 @@ function startNewPlan() {
     lockedPlatforms: {},
   };
   window.planData = null;
+  window.currentPlanId = null;       // brand-new plan → next save creates it
+  window.currentSnapshotId = null;
   activationCounter = 0;
 
   // Clear the activations list in the DOM
@@ -741,6 +769,8 @@ function loadPlanIntoApp(plan) {
 
   window.appState = plan.state;
   window.planData = plan.planData;
+  window.currentPlanId = plan._id || null;     // edits update THIS plan
+  window.currentSnapshotId = plan.id || null;
 
   showWizard();
 

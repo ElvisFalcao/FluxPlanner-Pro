@@ -279,6 +279,34 @@ async function deletePlanRouted(id) {
   if (t === 'guest')   return guestDeletePlan(id);
 }
 
+// Update an existing plan in place (no new copy) — used when editing a plan,
+// tracking actual spend, or marking items complete.
+async function dbUpdatePlan(id, snapshot) {
+  const { error } = await window.supabaseClient.from('plans').update({
+    campaign_name: snapshot.campaignName || null,
+    country: snapshot.country || null,
+    total_budget: snapshot.totalBudget || null,
+    data: snapshot,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id);
+  if (error) throw new Error(error.message);
+  return id;
+}
+
+function guestUpdatePlan(id, snapshot) {
+  const arr = _guestReadAll();
+  const i = arr.findIndex(p => p._id === id);
+  if (i >= 0) { arr[i] = { ...snapshot, _id: id }; _guestWriteAll(arr); }
+  return id;
+}
+
+async function updatePlanRouted(id, snapshot) {
+  const t = currentSessionType();
+  if (t === 'google')  return updatePlanInDrive(id, snapshot);
+  if (t === 'account') return dbUpdatePlan(id, snapshot);
+  if (t === 'guest')   return guestUpdatePlan(id, snapshot);
+}
+
 // ─── Account settings (avatar, display name, password, connectors, delete) ──
 window.accountUser = null;
 
