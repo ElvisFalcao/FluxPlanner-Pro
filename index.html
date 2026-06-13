@@ -60,15 +60,18 @@
        LOGIN SCREEN — shown on app load until user signs in with Google
   ════════════════════════════════════════════════════════════════════════ -->
   <div id="loginScreen"
-       style="position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;
-              background:#000000;padding:24px;">
+       style="position:fixed;inset:0;z-index:500;overflow-y:auto;background:#000000;">
     <!-- Background glow -->
     <div style="position:absolute;inset:0;pointer-events:none;
                 background:radial-gradient(ellipse 55% 40% at 50% 40%, rgba(252,163,17,0.12) 0%, transparent 70%);"></div>
 
+    <!-- Centering wrapper: flex-column + margin:auto on the card centers it when
+         it fits, and falls back to top-aligned + scrollable when the window is short -->
+    <div style="position:relative;z-index:1;min-height:100%;box-sizing:border-box;
+                display:flex;flex-direction:column;padding:24px;">
     <!-- Card -->
     <div style="position:relative;z-index:1;background:#14213D;border:1px solid rgba(255,255,255,0.09);
-                border-radius:24px;padding:48px 44px;max-width:420px;width:100%;text-align:center;
+                border-radius:24px;padding:48px 44px;max-width:420px;width:100%;margin:auto;text-align:center;
                 box-shadow:0 24px 80px rgba(0,0,0,0.5);">
 
       <!-- Logo -->
@@ -146,6 +149,7 @@
       <p style="margin-top:18px;font-size:0.74rem;color:#7C8597;line-height:1.5;">
         Accounts save your plans to the cloud. No account? You can still build plans and export to Excel/CSV.
       </p>
+    </div>
     </div>
   </div>
 
