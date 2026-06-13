@@ -184,12 +184,13 @@ function clearCachedToken() {
   try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
 }
 
-// On load: if we have a still-valid cached token, restore the session silently.
-// Otherwise stay on the login screen and wait for the user to click sign-in.
-window.addEventListener('DOMContentLoaded', () => {
-  if (!(oauthClientId && oauthApiKey)) return;
+// Restore a cached Google session if one is still valid. Returns true if a
+// restore was kicked off, so the session coordinator (initSession in
+// accounts.js) knows the Google flow will show the dashboard.
+function restoreGoogleSessionIfCached() {
+  if (!(oauthClientId && oauthApiKey)) return false;
   const cached = loadCachedToken();
-  if (!cached) return;
+  if (!cached) return false;
   accessToken = cached;
   loadGoogleAPIs(() => {
     initGapiClient(() => {
@@ -198,7 +199,8 @@ window.addEventListener('DOMContentLoaded', () => {
       finishSignIn();
     });
   });
-});
+  return true;
+}
 
 function connectGDriveOAuth() {
   // Credentials are baked in — reuse the one-click sign-in flow.
@@ -275,6 +277,7 @@ function initTokenClient() {
  * and when restoring a cached token on page load.
  */
 function finishSignIn() {
+  if (typeof setSession === 'function') setSession('google', '');
   updateGDriveUI(true);
   closeGDriveModal();
 
@@ -347,6 +350,7 @@ function signOutGoogle() {
   }
   accessToken = null;
   clearCachedToken();
+  window.appSession = null;
   window.driveUserInfo = null;
   // Reset the Drive folder ID cache in plans.js
   if (typeof driveFolderId !== 'undefined') { driveFolderId = null; }

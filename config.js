@@ -12,3 +12,17 @@
  */
 window.GOOGLE_CLIENT_ID = '418302312424-08s29c6t4budhmvm284smqe07fa3rjtd.apps.googleusercontent.com';
 window.GOOGLE_API_KEY   = 'AIzaSyBLQOgZKetCY1tNB4l_UzgLYPk6OZMk6oQ';
+
+/**
+ * Supabase — user accounts + saved-plan database.
+ * The URL and publishable key are safe to ship in client-side code because
+ * Row-Level Security restricts every user to only their own rows.
+ * NEVER put the service_role / secret key here.
+ */
+window.SUPABASE_URL      = 'https://yqiufyruxwfnjlcwmfvy.supabase.co';
+window.SUPABASE_ANON_KEY = 'sb_publishable_vv7Psg40Ge6BfLoh-v4V2g_Ms8tV9Hl';
+
+// Create the shared client once supabase-js (loaded in index.html) is present.
+window.supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
+  ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+  : null;

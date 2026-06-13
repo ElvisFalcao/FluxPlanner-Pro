@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <!-- SheetJS for Excel export -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Supabase JS — user accounts + saved-plan database -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Google API for Drive export (loaded on demand) -->
   
   <!-- Tailwind CSS Play CDN -->
@@ -81,20 +83,48 @@
                   -webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;">FluxPlanner‑Pro</div>
 
       <!-- Tagline -->
-      <p style="font-size:0.95rem;color:#CBD2DE;margin-bottom:32px;line-height:1.5;">
-        Your plans, backed by Google Drive
+      <p style="font-size:0.95rem;color:#CBD2DE;margin-bottom:24px;line-height:1.5;">
+        Plan campaign budgets across every platform.
       </p>
 
-      <!-- Sign In Button -->
+      <!-- Email / password account -->
+      <div style="text-align:left;display:flex;flex-direction:column;gap:10px;">
+        <input id="authEmail" type="email" placeholder="you@email.com" autocomplete="email"
+               style="width:100%;background:#0B1326;border:1px solid rgba(255,255,255,0.1);border-radius:10px;
+                      padding:12px 14px;color:#FFFFFF;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;" />
+        <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')accountSignIn()"
+               style="width:100%;background:#0B1326;border:1px solid rgba(255,255,255,0.1);border-radius:10px;
+                      padding:12px 14px;color:#FFFFFF;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;" />
+        <div id="authMsg" style="display:none;font-size:0.8rem;color:#FF453A;"></div>
+        <div style="display:flex;gap:10px;margin-top:2px;">
+          <button id="authSignInBtn" onclick="accountSignIn()"
+                  style="flex:1;background:transparent;border:1px solid rgba(255,255,255,0.18);color:#FFFFFF;
+                         border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.2s;"
+                  onmouseenter="this.style.borderColor='#FCA311';this.style.color='#FCA311';"
+                  onmouseleave="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='#FFFFFF';">Sign in</button>
+          <button id="authSignUpBtn" onclick="accountSignUp()"
+                  style="flex:1;background:linear-gradient(135deg,#FCA311,#FFB733);color:#14213D;border:none;
+                         border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;transition:all 0.2s;
+                         box-shadow:0 4px 16px rgba(252,163,17,0.3);"
+                  onmouseenter="this.style.transform='translateY(-1px)';"
+                  onmouseleave="this.style.transform='';">Create account</button>
+        </div>
+      </div>
+
+      <!-- divider -->
+      <div style="display:flex;align-items:center;gap:12px;margin:20px 0;color:#7C8597;font-size:0.78rem;">
+        <span style="flex:1;height:1px;background:rgba(255,255,255,0.1);"></span>or<span style="flex:1;height:1px;background:rgba(255,255,255,0.1);"></span>
+      </div>
+
+      <!-- Sign in with Google (owner / Drive path) -->
       <button onclick="startGoogleSignIn()"
               style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;
-                     background:linear-gradient(135deg,#FCA311,#FFB733);color:#14213D;
-                     border:none;border-radius:12px;padding:14px 24px;
-                     font-family:'Inter',sans-serif;font-size:0.95rem;font-weight:600;
-                     cursor:pointer;transition:all 0.2s;
-                     box-shadow:0 4px 20px rgba(252,163,17,0.35);"
-              onmouseenter="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 28px rgba(252,163,17,0.5)';"
-              onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(252,163,17,0.35)';">
+                     background:#FFFFFF;color:#14213D;border:none;border-radius:12px;padding:13px 24px;
+                     font-family:'Inter',sans-serif;font-size:0.92rem;font-weight:600;
+                     cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px rgba(0,0,0,0.25);"
+              onmouseenter="this.style.transform='translateY(-1px)';"
+              onmouseleave="this.style.transform='';">
         <!-- Google 'G' icon -->
         <svg width="20" height="20" viewBox="0 0 24 24">
           <path fill="#14213D" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -105,9 +135,16 @@
         Sign in with Google
       </button>
 
-      <p style="margin-top:24px;font-size:0.78rem;color:#7C8597;line-height:1.5;">
-        Plans are saved privately in your Google Drive.
-        <br>We only access files created by this app.
+      <!-- Continue without an account -->
+      <button onclick="continueAsGuest()"
+              style="margin-top:14px;background:none;border:none;color:#CBD2DE;font-size:0.85rem;
+                     font-family:'Inter',sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px;transition:color 0.2s;"
+              onmouseenter="this.style.color='#FCA311';" onmouseleave="this.style.color='#CBD2DE';">
+        Continue without an account →
+      </button>
+
+      <p style="margin-top:18px;font-size:0.74rem;color:#7C8597;line-height:1.5;">
+        Accounts save your plans to the cloud. No account? You can still build plans and export to Excel/CSV.
       </p>
     </div>
   </div>
@@ -149,7 +186,7 @@
             <span id="dashboardUserEmail" style="font-size:0.82rem;color:#CBD2DE;">Loading…</span>
           </div>
           <!-- Sign out -->
-          <button onclick="signOutGoogle()"
+          <button onclick="appSignOut()"
                   style="background:transparent;border:1px solid rgba(255,255,255,0.07);color:#7C8597;
                          border-radius:8px;padding:6px 12px;font-size:0.8rem;cursor:pointer;transition:all 0.2s;"
                   onmouseenter="this.style.borderColor='rgba(255,69,58,0.4)';this.style.color='#FF453A';"
@@ -179,6 +216,28 @@
         <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;
                    color:#FFFFFF;margin:0 0 6px;">My Plans</h1>
         <p style="font-size:0.92rem;color:#CBD2DE;margin:0;">Click any plan to open it, or start a new campaign above.</p>
+      </div>
+
+      <!-- Guest banner — only shown when browsing without an account -->
+      <div id="guestBanner" style="display:none;align-items:center;gap:16px;flex-wrap:wrap;
+                  background:linear-gradient(135deg,rgba(252,163,17,0.12),rgba(252,163,17,0.04));
+                  border:1px solid rgba(252,163,17,0.3);border-radius:16px;padding:18px 22px;margin-bottom:28px;">
+        <div style="flex:1;min-width:240px;">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;font-weight:700;color:#FFFFFF;margin-bottom:4px;">
+            You're browsing as a guest
+          </div>
+          <div style="font-size:0.85rem;color:#CBD2DE;line-height:1.5;">
+            Your plans are saved only in this browser. Create a free account to save them to the cloud,
+            access them from any device, and connect Google Drive.
+          </div>
+        </div>
+        <button onclick="showLoginScreen()"
+                style="background:linear-gradient(135deg,#FCA311,#FFB733);color:#14213D;border:none;border-radius:10px;
+                       padding:11px 20px;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;
+                       white-space:nowrap;box-shadow:0 4px 14px rgba(252,163,17,0.3);transition:transform 0.2s;"
+                onmouseenter="this.style.transform='translateY(-1px)';" onmouseleave="this.style.transform='';">
+          Create a free account
+        </button>
       </div>
 
       <!-- Loading spinner -->
@@ -238,7 +297,7 @@
         </div>
         <div class="flex items-center gap-3">
           <div id="gdriveUser" class="gdrive-user hidden"></div>
-          <button id="gdriveLoginBtn" class="btn btn-ghost btn-sm" onclick="openGDriveModal()">
+          <button id="gdriveLoginBtn" class="btn btn-ghost btn-sm drive-only" onclick="openGDriveModal()">
             <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
             Google Drive
           </button>
@@ -416,7 +475,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2"/><polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/><line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="2"/><line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="2"/></svg>
             CSV
           </button>
-          <button class="btn btn-export gdrive" onclick="exportToGDrive()">
+          <button class="btn btn-export gdrive drive-only" onclick="exportToGDrive()">
             <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
             Save to Google Drive
           </button>
@@ -522,6 +581,7 @@
   <script src="budget-engine.js"></script>
   <script src="export.js"></script>
   <script src="plans.js"></script>
+  <script src="accounts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

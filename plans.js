@@ -134,6 +134,7 @@ async function listPlansFromDrive() {
         if (!planRes.ok) return null;
         const plan = await planRes.json();
         plan._fileId = file.id;
+        plan._id = file.id;            // generic id used by the dashboard
         plan._modifiedTime = file.modifiedTime;
         return plan;
       } catch {
@@ -222,7 +223,7 @@ function renderDashboard(plans) {
   if (emptyState) emptyState.classList.add('hidden');
 
   grid.innerHTML = plans.map(plan => {
-    const fileId      = plan._fileId || '';
+    const fileId      = plan._id || plan._fileId || '';
     const country     = plan.country || '';
     const ci          = (typeof COUNTRY_DATA !== 'undefined' && COUNTRY_DATA[country]) || {};
     const flag        = ci.flag || '🌍';
@@ -316,17 +317,17 @@ function handleOpenPlan(fileId, event) {
   if (event) event.stopPropagation();
   if (!fileId) return;
   showToast('📂 Loading plan…', 'success');
-  loadPlanById(fileId)
-    .then(plan => loadPlanIntoApp(plan))
+  Promise.resolve(loadPlanRouted(fileId))
+    .then(plan => { if (plan) loadPlanIntoApp(plan); else showToast('Plan not found', 'error'); })
     .catch(err => showToast('Failed to load plan: ' + err.message, 'error'));
 }
 
 function handleDeletePlan(fileId, event) {
   if (event) event.stopPropagation();
   if (!fileId) return;
-  if (!confirm('Delete this plan from Google Drive? This cannot be undone.')) return;
+  if (!confirm('Delete this plan? This cannot be undone.')) return;
 
-  deletePlanFromDrive(fileId)
+  Promise.resolve(deletePlanRouted(fileId))
     .then(() => {
       showToast('🗑 Plan deleted', 'success');
       // Refresh the grid
@@ -335,7 +336,7 @@ function handleDeletePlan(fileId, event) {
       if (spinner)    spinner.classList.remove('hidden');
       if (emptyState) emptyState.classList.add('hidden');
       document.getElementById('plansGrid').innerHTML = '';
-      return listPlansFromDrive();
+      return listPlansRouted();
     })
     .then(plans => renderDashboard(plans))
     .catch(err => showToast('Delete failed: ' + err.message, 'error'));
@@ -355,20 +356,12 @@ function showDashboard() {
   if (dashboardScreen) dashboardScreen.style.display  = 'flex';
   if (appWrapper)      appWrapper.style.display       = 'none';
 
-  // Populate user info
-  if (window.driveUserInfo) {
-    const emailEl  = document.getElementById('dashboardUserEmail');
-    const avatarEl = document.getElementById('dashboardUserAvatar');
-    if (emailEl)  emailEl.textContent = window.driveUserInfo.email || '';
-    if (avatarEl && window.driveUserInfo.picture) {
-      avatarEl.src = window.driveUserInfo.picture;
-      avatarEl.style.display = 'inline-block';
-    }
-  }
+  // Header email/avatar, guest banner, and Drive-only controls (by session type).
+  if (typeof updateDashboardChrome === 'function') updateDashboardChrome();
 
-  // Show spinner, then (re)load the plans. Doing the fetch HERE means every
-  // entry point into the dashboard works — including clicking the logo to come
-  // back from the wizard, which previously left the spinner running forever.
+  // Show spinner, then (re)load the plans for whichever session is active.
+  // Doing the fetch HERE means every entry point into the dashboard works —
+  // including clicking the logo to come back from the wizard.
   const spinner    = document.getElementById('plansSpinner');
   const emptyState = document.getElementById('plansEmptyState');
   const grid       = document.getElementById('plansGrid');
@@ -376,14 +369,9 @@ function showDashboard() {
   if (emptyState) emptyState.classList.add('hidden');
   if (grid)       grid.innerHTML = '';
 
-  if (window.accessToken) {
-    listPlansFromDrive()
-      .then(plans => renderDashboard(plans))
-      .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
-  } else {
-    // Not signed in — nothing to load; clear the spinner and show empty state.
-    renderDashboard([]);
-  }
+  Promise.resolve(listPlansRouted())
+    .then(plans => renderDashboard(plans))
+    .catch(err => { console.warn('Could not load plans:', err); renderDashboard([]); });
 }
 
 /**

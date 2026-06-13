@@ -505,8 +505,9 @@ function generatePlan() {
   renderSummaryCards(plan, state);
   renderBudgetTable(plan, state);
 
-  // Auto-save to Drive if user is signed in
-  if (window.accessToken) {
+  // Auto-save for whichever session is active: Google Drive, Supabase DB,
+  // or (for guests) the browser. Routed by accounts.js.
+  if (typeof currentSessionType === 'function' && currentSessionType()) {
     const snapshot = {
       id: crypto.randomUUID(),
       savedAt: new Date().toISOString(),
@@ -517,9 +518,11 @@ function generatePlan() {
       state: JSON.parse(JSON.stringify(state)),
       planData: JSON.parse(JSON.stringify(plan)),
     };
-    savePlanToDrive(snapshot)
-      .then(() => showToast('✅ Plan saved to Google Drive', 'success'))
-      .catch(err => showToast('Could not save to Drive: ' + err.message, 'error'));
+    const t = currentSessionType();
+    const where = t === 'guest' ? 'in this browser' : (t === 'google' ? 'to Google Drive' : 'to your account');
+    Promise.resolve(savePlanRouted(snapshot))
+      .then(() => showToast(`✅ Plan saved ${where}`, 'success'))
+      .catch(err => showToast('Could not save plan: ' + err.message, 'error'));
   }
 }
 
