@@ -354,6 +354,17 @@ function renderDashboard(plans) {
                          font-weight:600;cursor:pointer;transition:background 0.15s;"
                   onmouseenter="this.style.background='rgba(252,163,17,0.32)'"
                   onmouseleave="this.style.background='rgba(252,163,17,0.18)'">Open</button>
+          <button onclick="handleDuplicatePlan('${fileId}', event)" title="Duplicate plan"
+                  style="background:rgba(229,229,229,0.06);border:1px solid rgba(229,229,229,0.18);
+                         color:#CBD2DE;padding:5px 7px;border-radius:8px;cursor:pointer;
+                         display:flex;align-items:center;transition:background 0.15s;"
+                  onmouseenter="this.style.background='rgba(229,229,229,0.14)'"
+                  onmouseleave="this.style.background='rgba(229,229,229,0.06)'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </button>
           <button onclick="handleDeletePlan('${fileId}', event)" title="Delete plan"
                   style="background:rgba(255,69,58,0.1);border:1px solid rgba(255,69,58,0.25);
                          color:#FF453A;padding:5px 7px;border-radius:8px;cursor:pointer;
@@ -387,6 +398,37 @@ function handleOpenPlan(fileId, event) {
   Promise.resolve(loadPlanRouted(fileId))
     .then(plan => { if (plan) loadPlanIntoApp(plan); else showToast('Plan not found', 'error'); })
     .catch(err => showToast('Failed to load plan: ' + err.message, 'error'));
+}
+
+/**
+ * Duplicate a plan as a brand-new copy (non-destructive — never touches the
+ * original). The copy is named "<name> (copy)".
+ */
+function handleDuplicatePlan(fileId, event) {
+  if (event) event.stopPropagation();
+  if (!fileId) return;
+  showToast('Duplicating…', 'success');
+  Promise.resolve(loadPlanRouted(fileId))
+    .then(plan => {
+      if (!plan) throw new Error('Plan not found');
+      const name = (plan.campaignName || 'Plan') + ' (copy)';
+      const state = JSON.parse(JSON.stringify(plan.state || {}));
+      state.campaignName = name;
+      const copy = {
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'copy-' + Date.now(),
+        savedAt: new Date().toISOString(),
+        campaignName: name,
+        totalBudget: plan.totalBudget,
+        country: plan.country,
+        exchangeRate: plan.exchangeRate,
+        state: state,
+        planData: JSON.parse(JSON.stringify(plan.planData || {})),
+      };
+      return savePlanRouted(copy);
+    })
+    .then(() => { showToast('✅ Duplicated as a new copy', 'success'); return listPlansRouted(); })
+    .then(plans => renderDashboard(plans))
+    .catch(err => showToast('Could not duplicate: ' + err.message, 'error'));
 }
 
 function handleDeletePlan(fileId, event) {

@@ -703,6 +703,124 @@ function showToast(msg, type = 'success') {
 
 // ─── Dashboard Navigation ─────────────────────────────────────────────────────
 
+// ─── Import / open external plans ─────────────────────────────────────────────
+function openImportModal() {
+  const m = document.getElementById('importModal');
+  if (m) { _importMsg('', null); m.classList.remove('hidden'); }
+}
+function closeImportModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const m = document.getElementById('importModal');
+  if (m) m.classList.add('hidden');
+}
+function _importMsg(text, kind) {
+  const el = document.getElementById('importMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = kind === 'error' ? '#FF453A' : '#34D399';
+}
+
+/** Save a freshly-imported plan as a NEW copy, then open it. */
+function saveImportedPlan(state, planData) {
+  window.appState = state;
+  window.planData = planData || buildPlan(state);
+  window.currentPlanId = null;
+  window.currentSnapshotId = null;
+  closeImportModal();
+  if (!(typeof currentSessionType === 'function' && currentSessionType())) {
+    // No session (shouldn't happen from the dashboard) — just open it.
+    loadPlanIntoApp({ state: window.appState, planData: window.planData });
+    return;
+  }
+  const snap = buildSnapshot();
+  Promise.resolve(savePlanRouted(snap))
+    .then(id => {
+      window.currentPlanId = id || null;
+      showToast('✅ Imported as a new plan', 'success');
+      loadPlanIntoApp({ ...snap, _id: id });
+    })
+    .catch(err => showToast('Import failed: ' + err.message, 'error'));
+}
+
+/** Open a FluxPlanner .json file from the user's computer (imports as a copy). */
+function importFromJsonFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const state = data.state || data;
+      if (!state || (!state.campaignName && !Array.isArray(state.activations))) {
+        throw new Error('That doesn\'t look like a FluxPlanner plan file.');
+      }
+      saveImportedPlan(
+        JSON.parse(JSON.stringify(state)),
+        data.planData ? JSON.parse(JSON.stringify(data.planData)) : null
+      );
+    } catch (e) { _importMsg('Could not read file: ' + e.message, 'error'); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/** Download the CSV template the user fills in to recreate an old manual plan. */
+function downloadCsvTemplate() {
+  const csv = 'Activation Name,Date (YYYY-MM-DD),Asset Type (Video / Animated Static / Static)\n' +
+              'Teaser,2026-07-01,Video\nEpisode 1,2026-07-08,Static\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fluxplanner-template.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/** Import a manual plan from the filled-in CSV template + the campaign fields. */
+function importFromCsv() {
+  const g = id => (document.getElementById(id) || {}).value || '';
+  const name = g('importName').trim();
+  const country = g('importCountry');
+  const budget = parseFloat(g('importBudget')) || 0;
+  const rate = parseFloat(g('importRate')) || 18.5;
+  const fileInput = document.getElementById('importCsvFile');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+
+  if (!name)    { _importMsg('Enter a campaign name.', 'error'); return; }
+  if (!country) { _importMsg('Choose a country.', 'error'); return; }
+  if (!budget)  { _importMsg('Enter a total budget.', 'error'); return; }
+  if (!file)    { _importMsg('Choose your filled-in CSV file.', 'error'); return; }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const lines = reader.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const map = { 'video': 'Video', 'animated static': 'Animated Static', 'animated': 'Animated Static', 'static': 'Static' };
+      const activations = lines.slice(1).map((line, i) => {
+        const cols = line.split(',').map(c => c.trim());
+        return {
+          id: 'imp-' + (i + 1),
+          name: cols[0] || ('Activation ' + (i + 1)),
+          date: cols[1] || '',
+          assetType: map[(cols[2] || 'video').toLowerCase()] || 'Video',
+          budget: 0, budgetLocked: false, durations: { ...DEFAULT_DURATIONS },
+        };
+      });
+      if (!activations.length) { _importMsg('No rows found in the CSV.', 'error'); return; }
+      const cd = COUNTRY_DATA[country] || {};
+      const state = {
+        currentStep: 4, campaignName: name, country: country, totalBudget: budget,
+        exchangeRate: rate, objective: 'Video Views', activations: activations,
+        platformSplits: { ...(cd.splits || { TikTok: 25, Instagram: 25, YouTube: 25, Facebook: 25 }) },
+        lockedPlatforms: {},
+      };
+      saveImportedPlan(state, null);
+    } catch (e) { _importMsg('Could not parse the CSV: ' + e.message, 'error'); }
+  };
+  reader.readAsText(file);
+}
+
 /**
  * Called from the dashboard "New Campaign" button.
  * Resets all app state and shows step 1 of the wizard.
