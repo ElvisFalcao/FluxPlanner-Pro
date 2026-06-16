@@ -240,6 +240,29 @@
         <p style="font-size:0.92rem;color:#CBD2DE;margin:0;">A snapshot of all your campaigns.</p>
       </div>
 
+      <!-- Campaign Filter Container -->
+      <div id="campaignFilterContainer" style="display:none;margin-bottom:24px;background:#14213D;border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:20px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;">
+          <input type="text" id="campaignFilterSearch" placeholder="Search campaigns..." 
+                 style="flex:1;min-width:200px;background:#000000;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#FFFFFF;font-family:'Inter',sans-serif;font-size:0.88rem;outline:none;" />
+          <div style="display:flex;align-items:center;gap:8px;color:#FFFFFF;font-family:'Inter',sans-serif;font-size:0.88rem;user-select:none;cursor:pointer;">
+            <input type="checkbox" id="allPlansCheckbox" checked style="width:16px;height:16px;accent-color:#FCA311;cursor:pointer;" />
+            <label for="allPlansCheckbox" style="cursor:pointer;">All Plans</label>
+          </div>
+        </div>
+        
+        <!-- Chips container -->
+        <div id="campaignFilterChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+        
+        <!-- Dynamic options list container -->
+        <div id="filterOptionsList" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;"></div>
+        
+        <!-- No matching plans placeholder -->
+        <div id="noMatchingPlansPlaceholder" style="display:none;padding:8px;color:#7C8597;font-family:'Inter',sans-serif;font-size:0.88rem;">
+          No matching plans
+        </div>
+      </div>
+
       <!-- Overview stat cards (populated by renderOverview) -->
       <div id="overviewSection"
            class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-9"
@@ -310,6 +333,18 @@
       <!-- Plans grid -->
       <div id="plansGrid"
            style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
+
+      <!-- Shared with me section -->
+      <div id="sharedWithMeSection" style="display:none;margin-top:32px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:700;color:#FFFFFF;margin:0;">Shared with me</h2>
+          <span id="sharedBadgeCount"
+                style="display:none;background:linear-gradient(135deg,#FCA311,#FFB733);color:#14213D;
+                       font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:10px;"></span>
+        </div>
+        <div id="sharedPlansGrid"
+             style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
+      </div>
     </main>
   </div>
 
@@ -750,6 +785,88 @@
                 onmouseenter="this.style.background='rgba(255,69,58,0.22)';" onmouseleave="this.style.background='rgba(255,69,58,0.12)';">
           Delete my account
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SHARE PLAN MODAL
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="shareModal" class="hidden"
+       onclick="closeShareModal(event)"
+       style="position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);
+              z-index:999;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div onclick="event.stopPropagation()"
+         style="background:#14213D;border:1px solid rgba(255,255,255,0.1);border-radius:16px;
+                max-width:480px;width:100%;max-height:85vh;overflow-y:auto;
+                box-shadow:0 24px 80px rgba(0,0,0,0.5);position:relative;">
+      <!-- Accent bar -->
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;
+                  background:linear-gradient(90deg,#FCA311,#FFD27A);border-radius:16px 16px 0 0;"></div>
+
+      <div style="padding:28px 24px;">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;
+                     color:#FFFFFF;margin:0;display:flex;align-items:center;gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" stroke="#FCA311" stroke-width="2" stroke-linecap="round"/>
+              <polyline points="16 6 12 2 8 6" stroke="#FCA311" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="12" y1="2" x2="12" y2="15" stroke="#FCA311" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Share Plan
+          </h3>
+          <button onclick="closeShareModal()" title="Close"
+                  style="background:transparent;border:none;color:#7C8597;cursor:pointer;padding:4px;
+                         transition:color 0.15s;"
+                  onmouseenter="this.style.color='#FFFFFF'" onmouseleave="this.style.color='#7C8597'">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Share form -->
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#CBD2DE;margin-bottom:6px;">Share with (email)</label>
+          <div style="display:flex;gap:8px;">
+            <input type="email" id="shareEmailInput" placeholder="colleague@company.com"
+                   style="flex:1;background:#0B1326;border:1px solid rgba(255,255,255,0.1);border-radius:8px;
+                          color:#FFFFFF;padding:10px 14px;font-size:0.88rem;font-family:'Inter',sans-serif;
+                          outline:none;transition:border-color 0.2s;"
+                   onfocus="this.style.borderColor='rgba(252,163,17,0.5)'"
+                   onblur="this.style.borderColor='rgba(255,255,255,0.1)'" />
+            <button id="shareSendBtn" onclick="sendShareInvite()"
+                    style="background:linear-gradient(135deg,#FCA311,#FFB733);color:#14213D;border:none;
+                           border-radius:8px;padding:10px 16px;font-family:'Inter',sans-serif;font-size:0.85rem;
+                           font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap;"
+                    onmouseenter="this.style.transform='translateY(-1px)'" onmouseleave="this.style.transform=''">
+              Share
+            </button>
+          </div>
+          <!-- Permission toggle -->
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+            <label style="font-size:0.78rem;color:#7C8597;">Permission:</label>
+            <select id="sharePermissionSelect"
+                    style="background:#0B1326;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
+                           color:#CBD2DE;padding:5px 10px;font-size:0.8rem;font-family:'Inter',sans-serif;outline:none;">
+              <option value="read">👁 Read only</option>
+              <option value="edit">✏️ Can edit</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="shareMsg" style="display:none;font-size:0.83rem;margin-bottom:14px;padding:10px 14px;
+                                  background:rgba(255,255,255,0.04);border-radius:8px;"></div>
+
+        <!-- Current shares list -->
+        <div>
+          <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;
+                      color:#7C8597;margin-bottom:10px;">Shared with</div>
+          <div id="sharesList" style="display:flex;flex-direction:column;gap:8px;">
+            <div style="text-align:center;padding:16px;color:#7C8597;font-size:0.85rem;">Loading…</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

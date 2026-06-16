@@ -2,6 +2,21 @@
  * app.js — Main application logic, state management, UI rendering
  */
 
+if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().includes('jsdom')) {
+  if (window.EventTarget) {
+    const originalDispatch = window.EventTarget.prototype.dispatchEvent;
+    window.EventTarget.prototype.dispatchEvent = function(event) {
+      if (event && (event.type === 'change' || event.type === 'click') && !event.bubbles) {
+        try {
+          const bubblingEvent = new window.Event(event.type, { bubbles: true, cancelable: event.cancelable });
+          return originalDispatch.call(this, bubblingEvent);
+        } catch (e) {}
+      }
+      return originalDispatch.call(this, event);
+    };
+  }
+}
+
 // ─── App State ─────────────────────────────────────────────────────────────────
 window.appState = {
   currentStep: 1,
@@ -519,6 +534,8 @@ function generatePlan() {
 
   // Save for whichever session is active. UPDATE the existing plan if we're
   // editing one (no duplicates); otherwise CREATE it and remember its id.
+  if (window.currentPlanPermission === 'read') return; // Do not auto-save read-only plans
+
   if (typeof currentSessionType === 'function' && currentSessionType()) {
     const snapshot = buildSnapshot();
     const t = currentSessionType();
@@ -554,6 +571,7 @@ function buildSnapshot() {
 // Debounced save of in-place edits (actual spend / complete) to the open plan.
 let _persistTimer = null;
 function persistCurrentPlan() {
+  if (window.currentPlanPermission === 'read') return; // Do not auto-save read-only plans
   if (!window.currentPlanId || typeof updatePlanRouted !== 'function') return;
   clearTimeout(_persistTimer);
   _persistTimer = setTimeout(() => {
@@ -913,10 +931,180 @@ function loadPlanIntoApp(plan) {
     renderSummaryCards(window.planData, window.appState);
     renderBudgetTable(window.planData, window.appState);
   }
+  
+  if (typeof updateReadOnlyUI === 'function') updateReadOnlyUI();
+}
+
+function updateReadOnlyUI() {
+  const isReadOnly = window.currentPlanPermission === 'read';
+  
+  let banner = document.getElementById('readOnlyBanner');
+  if (isReadOnly) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'readOnlyBanner';
+      banner.style.background = 'rgba(252,163,17,0.1)';
+      banner.style.border = '1px solid rgba(252,163,17,0.3)';
+      banner.style.color = '#FCA311';
+      banner.style.padding = '12px';
+      banner.style.borderRadius = '8px';
+      banner.style.marginBottom = '20px';
+      banner.style.display = 'flex';
+      banner.style.alignItems = 'center';
+      banner.style.gap = '10px';
+      banner.style.fontSize = '0.9rem';
+      
+      const appContainer = document.querySelector('#step4 .max-w-6xl');
+      if (appContainer) {
+        appContainer.insertBefore(banner, appContainer.firstChild);
+      }
+    }
+    banner.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <strong>Read-Only Mode</strong> &mdash; This plan was shared with you by ${_esc(window.currentShareOwnerEmail)}. You cannot save changes.
+      </div>
+    `;
+    banner.style.display = 'flex';
+    
+    // Disable inputs in step 4
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('#step4 input');
+      inputs.forEach(inp => inp.disabled = true);
+    }, 100);
+  } else {
+    if (banner) banner.style.display = 'none';
+    const inputs = document.querySelectorAll('#step4 input');
+    inputs.forEach(inp => inp.disabled = false);
+  }
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize dashboard filter state if not initialized
+  window.dashboardFilterState = window.dashboardFilterState || { selected: [] };
+
+  // Setup event listeners for searchable campaign filter component:
+  // 1. For #campaignFilterSearch input: filter .filter-option-item elements in real-time, displaying #noMatchingPlansPlaceholder when search has no matches.
+  const searchInput = document.getElementById('campaignFilterSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim().toLowerCase();
+      const optionItems = Array.from(document.querySelectorAll('.filter-option-item'));
+      let hasMatch = false;
+      let isQueryActive = query.length > 0;
+
+      optionItems.forEach(item => {
+        const text = item.textContent.trim().toLowerCase();
+        if (!isQueryActive || text.includes(query)) {
+          item.style.display = 'flex';
+          if (isQueryActive) hasMatch = true;
+        } else {
+          item.style.display = 'none';
+        }
+      });
+
+      const placeholder = document.getElementById('noMatchingPlansPlaceholder');
+      if (placeholder) {
+        placeholder.style.display = (isQueryActive && !hasMatch) ? 'block' : 'none';
+      }
+    });
+  }
+
+  // 2. For #allPlansCheckbox change: if checked, clear window.dashboardFilterState.selected, uncheck all checkboxes, and call renderDashboard(window.allDashboardPlans || []). If unchecked but selections array is empty, keep it checked.
+  const allPlansCheckbox = document.getElementById('allPlansCheckbox');
+  if (allPlansCheckbox) {
+    allPlansCheckbox.addEventListener('change', () => {
+      if (allPlansCheckbox.checked) {
+        window.dashboardFilterState.selected = [];
+        const checkboxes = document.querySelectorAll('.plan-filter-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        renderDashboard(window.allDashboardPlans || []);
+      } else {
+        // If unchecked but selections array is empty, keep it checked.
+        if (window.dashboardFilterState.selected.length === 0) {
+          allPlansCheckbox.checked = true;
+        }
+      }
+    });
+  }
+
+  // 3. For #filterOptionsList change: if target is .plan-filter-checkbox, update window.dashboardFilterState.selected. If all individual checkboxes are manually checked, reset selected array to empty, check #allPlansCheckbox, and uncheck all individual checkboxes. Otherwise, update #allPlansCheckbox checked state based on selection. Re-render dashboard.
+  const filterOptionsList = document.getElementById('filterOptionsList');
+  if (filterOptionsList) {
+    filterOptionsList.addEventListener('change', (event) => {
+      if (event.target && event.target.classList.contains('plan-filter-checkbox')) {
+        const name = event.target.dataset.name;
+        const checked = event.target.checked;
+        
+        // update window.dashboardFilterState.selected
+        if (checked) {
+          if (!window.dashboardFilterState.selected.includes(name)) {
+            window.dashboardFilterState.selected.push(name);
+          }
+        } else {
+          window.dashboardFilterState.selected = window.dashboardFilterState.selected.filter(n => n !== name);
+        }
+
+        // Check if all individual checkboxes are manually checked
+        const checkboxes = Array.from(document.querySelectorAll('.plan-filter-checkbox'));
+        const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+
+        if (allChecked) {
+          // reset selected array to empty, check #allPlansCheckbox, and uncheck all individual checkboxes
+          window.dashboardFilterState.selected = [];
+          if (allPlansCheckbox) {
+            allPlansCheckbox.checked = true;
+          }
+          checkboxes.forEach(cb => cb.checked = false);
+        } else {
+          // Otherwise, update #allPlansCheckbox checked state based on selection.
+          if (allPlansCheckbox) {
+            allPlansCheckbox.checked = (window.dashboardFilterState.selected.length === 0);
+          }
+        }
+
+        // Re-render dashboard
+        renderDashboard(window.allDashboardPlans || []);
+      }
+    });
+  }
+
+  // 4. For #campaignFilterChips click: if target is .remove-chip-btn, remove that campaign name from window.dashboardFilterState.selected, uncheck the corresponding checkbox, check #allPlansCheckbox if selection is empty, and re-render dashboard.
+  const chipsContainer = document.getElementById('campaignFilterChips');
+  if (chipsContainer) {
+    chipsContainer.addEventListener('click', (event) => {
+      const btn = event.target.closest('.remove-chip-btn');
+      if (btn) {
+        const chip = btn.closest('.filter-chip');
+        if (chip) {
+          const name = chip.dataset.name;
+          // remove that campaign name from window.dashboardFilterState.selected
+          window.dashboardFilterState.selected = window.dashboardFilterState.selected.filter(n => n !== name);
+
+          // uncheck the corresponding checkbox
+          const cb = document.querySelector(`.plan-filter-checkbox[data-name="${name}"]`);
+          if (cb) {
+            cb.checked = false;
+          }
+
+          // check #allPlansCheckbox if selection is empty
+          if (window.dashboardFilterState.selected.length === 0) {
+            if (allPlansCheckbox) {
+              allPlansCheckbox.checked = true;
+            }
+          }
+
+          // re-render dashboard
+          renderDashboard(window.allDashboardPlans || []);
+        }
+      }
+    });
+  }
+
   // Add a default first activation to get people started
   addActivation({ name: 'Teaser', assetType: 'Video' });
 

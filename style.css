@@ -312,3 +312,165 @@ body::before {
   /* Dashboard plan cards: allow narrower so they don't overflow tiny phones */
   #plansGrid{grid-template-columns:1fr!important;}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PLAN SHARING
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Share modal transitions */
+#shareModal:not(.hidden) {
+  animation: fadeIn 0.2s ease;
+}
+#shareModal .hidden { display: none; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Share list items */
+.share-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(11, 19, 38, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: border-color 0.2s;
+}
+.share-item:hover {
+  border-color: rgba(252, 163, 17, 0.2);
+}
+.share-item-email {
+  font-size: 0.88rem;
+  color: #FFFFFF;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-item-permission {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.share-item-permission.read {
+  background: rgba(100, 149, 237, 0.15);
+  color: #6495ED;
+  border: 1px solid rgba(100, 149, 237, 0.3);
+}
+.share-item-permission.edit {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34D399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+.share-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.share-item-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #7C8597;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+}
+.share-item-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #CBD2DE;
+}
+.share-item-btn.danger:hover {
+  border-color: rgba(255, 69, 58, 0.4);
+  color: #FF453A;
+}
+
+/* Shared plan card badge */
+.shared-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.shared-badge.read {
+  background: rgba(100, 149, 237, 0.12);
+  color: #6495ED;
+  border: 1px solid rgba(100, 149, 237, 0.25);
+}
+.shared-badge.edit {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34D399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+/* Read-only banner */
+.readonly-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(100, 149, 237, 0.1), rgba(100, 149, 237, 0.04));
+  border: 1px solid rgba(100, 149, 237, 0.25);
+  border-radius: 12px;
+  font-size: 0.88rem;
+  color: #CBD2DE;
+}
+.readonly-banner svg {
+  flex-shrink: 0;
+  color: #6495ED;
+}
+
+/* Share notification toast */
+.share-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1001;
+  background: #14213D;
+  border: 1px solid rgba(252, 163, 17, 0.4);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  max-width: 360px;
+  animation: slideInRight 0.35s ease;
+}
+.share-notification-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #FCA311;
+  margin-bottom: 4px;
+}
+.share-notification-body {
+  font-size: 0.83rem;
+  color: #CBD2DE;
+  line-height: 1.4;
+}
+.share-notification-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #7C8597;
+  cursor: pointer;
+  padding: 4px;
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
