@@ -1,19 +1,21 @@
 /**
- * gsd-publish.js — "Publish to GSD".
+ * gsd-publish.js — "Publish to GSD", from any session.
  *
- * Publishing flags a saved plan as readable by the Regency GSD Project
- * Manager, which shares this Supabase project. The plans table is owner-only
- * under RLS, so a draft is invisible to everyone until its author publishes;
- * the plans_gsd_read policy then grants active GSD workspace members SELECT
- * on published rows and nothing else. Unpublishing hides the plan again.
+ * FluxPlanner is deliberately usable without an account, so publishing must
+ * be too. Three cases:
  *
- * Publishing also records which Shalina brand the plan belongs to. FluxPlanner
- * itself has no brand concept, but GSD validates every row against the brand's
- * eligible markets and platforms, so without this the importer had to guess.
+ *   account — the plan already lives in the Supabase plans table; publishing
+ *             toggles the flag on that row.
+ *   google / guest — the plan lives in Drive or this browser. Publishing
+ *             silently signs in anonymously (no form, no password), copies the
+ *             plan into the database owned by that session, and flags it.
+ *             The copy is found again by the plan's own snapshot id, so
+ *             republishing updates rather than duplicates.
  *
- * Requires the account (Supabase) session: Google-Drive and guest plans live
- * outside the database, so there is nothing for GSD to read until the plan is
- * saved into it, and saving needs a signed-in Supabase user.
+ * Requires "Allow anonymous sign-ins" in Supabase Auth settings. RLS is
+ * untouched: an anonymous user owns only the rows they created, and the GSD
+ * side can only read published plans — plus unpublish them, which is how the
+ * import list stays curated.
  */
 
 // Mirror of GSD's BRAND_CATALOG keys. If a brand is added there, add it here.
@@ -22,41 +24,36 @@ const GSD_BRANDS = ['Germol', 'Flodent', 'Aco', 'Shaltoux', "Shal'Artem", 'Ibuca
 async function publishPlanToGSD() {
   const btn = document.getElementById('gsdPublishBtn');
   try {
-    if (typeof currentSessionType !== 'function' || currentSessionType() !== 'account') {
-      showToast('Sign in with your FluxPlanner account (not Google Drive or guest mode) to publish to GSD', 'error');
-      return;
-    }
     if (!window.supabaseClient) { showToast('Supabase is not available', 'error'); return; }
     if (btn) btn.disabled = true;
 
-    // A brand-new plan has no database row yet; save it first so there is
-    // something to publish. An open account plan already has its id.
-    let id = window.currentPlanId;
-    if (!id) {
-      id = await dbSavePlan(buildSnapshot());
-      window.currentPlanId = id;
-    }
+    const isAccount = typeof currentSessionType === 'function' && currentSessionType() === 'account';
+    const target = isAccount ? await _accountPlanRow() : await _copiedPlanRow();
+    if (!target) return; // a toast has already said why
 
-    // Toggle from the database's answer, not a cached flag — the same plan
-    // may have been published from another window.
-    const { data: row, error: readErr } = await window.supabaseClient
-      .from('plans').select('published_to_gsd, gsd_brand').eq('id', id).single();
-    if (readErr) throw new Error(readErr.message);
-
-    const next = !row.published_to_gsd;
-    let brand = row.gsd_brand || null;
+    const next = !target.published;
+    let brand = target.brand || null;
     if (next && !brand) {
       brand = await _askGSDBrand();
       if (!brand) return; // cancelled — publish nothing
     }
 
-    const { error } = await window.supabaseClient.from('plans').update({
+    const update = {
       published_to_gsd: next,
       gsd_workspace_id: next ? (window.GSD_WORKSPACE_ID || 'regency-shalina') : null,
-      gsd_brand: next ? brand : row.gsd_brand, // keep the brand on unpublish for the next publish
+      gsd_brand: next ? brand : target.brand, // survives unpublish for next time
       published_at: next ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    };
+    // Republishing a Drive/guest plan also refreshes the stored copy, so GSD
+    // imports what the author sees now, not what they published last month.
+    if (next && target.snapshot) {
+      update.data = target.snapshot;
+      update.campaign_name = target.snapshot.campaignName || null;
+      update.country = target.snapshot.country || null;
+      update.total_budget = target.snapshot.totalBudget || null;
+    }
+    const { error } = await window.supabaseClient.from('plans').update(update).eq('id', target.id);
     if (error) throw new Error(error.message);
 
     _setGSDPublishLabel(next);
@@ -68,6 +65,55 @@ async function publishPlanToGSD() {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+/** Account session: the open plan's own database row. */
+async function _accountPlanRow() {
+  let id = window.currentPlanId;
+  if (!id) {
+    id = await dbSavePlan(buildSnapshot());
+    window.currentPlanId = id;
+  }
+  const { data, error } = await window.supabaseClient
+    .from('plans').select('id, published_to_gsd, gsd_brand').eq('id', id).single();
+  if (error) throw new Error(error.message);
+  return { id: data.id, published: data.published_to_gsd, brand: data.gsd_brand, snapshot: buildSnapshot() };
+}
+
+/**
+ * Drive/guest session: find or create the plan's copy in the database, owned
+ * by a silent anonymous session. The snapshot id is the stable key — it is
+ * minted once per plan and survives every save, so republishing finds the
+ * same row instead of stacking duplicates.
+ */
+async function _copiedPlanRow() {
+  let { data: { session } } = await window.supabaseClient.auth.getSession();
+  if (!session) {
+    const { data, error } = await window.supabaseClient.auth.signInAnonymously();
+    if (error) {
+      showToast('Publishing without an account needs "Allow anonymous sign-ins" enabled in Supabase Auth settings — or sign in and try again.', 'error');
+      return null;
+    }
+    session = data.session;
+  }
+
+  const snapshot = buildSnapshot();
+  const { data: existing, error: findErr } = await window.supabaseClient
+    .from('plans').select('id, published_to_gsd, gsd_brand')
+    .eq('data->>id', snapshot.id).limit(1).maybeSingle();
+  if (findErr) throw new Error(findErr.message);
+  if (existing) return { id: existing.id, published: existing.published_to_gsd, brand: existing.gsd_brand, snapshot };
+
+  const { data: created, error: insertErr } = await window.supabaseClient.from('plans').insert({
+    user_id: session.user.id,
+    owner_email: (window.appSession && window.appSession.email) || null,
+    campaign_name: snapshot.campaignName || null,
+    country: snapshot.country || null,
+    total_budget: snapshot.totalBudget || null,
+    data: snapshot,
+  }).select('id').single();
+  if (insertErr) throw new Error(insertErr.message);
+  return { id: created.id, published: false, brand: null, snapshot };
 }
 
 /** Small one-question dialog: which brand is this plan for? */
@@ -110,15 +156,26 @@ function _setGSDPublishLabel(published) {
   btn.classList.toggle('gsd-published', !!published);
 }
 
-/** Show the true published state when an account plan is opened. */
+/** Show the true published state when a plan is opened, whatever the session. */
 async function refreshGSDPublishState() {
   try {
-    if (typeof currentSessionType !== 'function' || currentSessionType() !== 'account'
-        || !window.currentPlanId || !window.supabaseClient) {
-      return _setGSDPublishLabel(false);
+    if (!window.supabaseClient) return _setGSDPublishLabel(false);
+    const isAccount = typeof currentSessionType === 'function' && currentSessionType() === 'account';
+    if (isAccount && window.currentPlanId) {
+      const { data } = await window.supabaseClient.from('plans')
+        .select('published_to_gsd').eq('id', window.currentPlanId).single();
+      return _setGSDPublishLabel(!!(data && data.published_to_gsd));
     }
-    const { data } = await window.supabaseClient.from('plans')
-      .select('published_to_gsd').eq('id', window.currentPlanId).single();
-    _setGSDPublishLabel(!!(data && data.published_to_gsd));
+    // Drive/guest: only findable if this browser still holds the session that
+    // published it. A cold browser shows unpublished, which errs safe — the
+    // worst outcome is being asked the brand question again.
+    if (window.currentSnapshotId) {
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      if (!session) return _setGSDPublishLabel(false);
+      const { data } = await window.supabaseClient.from('plans')
+        .select('published_to_gsd').eq('data->>id', window.currentSnapshotId).limit(1).maybeSingle();
+      return _setGSDPublishLabel(!!(data && data.published_to_gsd));
+    }
+    _setGSDPublishLabel(false);
   } catch (_) { _setGSDPublishLabel(false); }
 }
