@@ -515,6 +515,10 @@
             <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M7.71 3.5L1.15 15l3.43 5.96L11.14 9.5 7.71 3.5zm.57 1L11.43 10H4.85L8.28 4.5zM12 10.5l-3.43 5.96H5.15L1.72 10.5H12zm3.43 0l3.43 5.96-3.43 5.96H8.57l3.43-5.96-3.43-5.96h6.86zm-3 10.5l-1.72 3H9.15l1.72-3h1.56zm3.86 0l1.72 3H16.85l-1.72-3h1.16zM16.29 3.5l-3.43 5.96H9.43l3.43-5.96h3.43z"/></svg>
             Save to Google Drive
           </button>
+          <button class="btn btn-export" id="gsdPublishBtn" onclick="publishPlanToGSD()" title="Make this plan visible in the GSD Project Manager">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12M7 8l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>Publish to GSD</span>
+          </button>
         </div>
 
         <!-- Summary Cards -->
@@ -760,6 +764,7 @@
   <script src="export.js"></script>
   <script src="plans.js"></script>
   <script src="accounts.js"></script>
+  <script src="gsd-publish.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

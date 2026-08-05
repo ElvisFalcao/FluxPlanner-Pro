@@ -889,6 +889,7 @@ function loadPlanIntoApp(plan) {
   window.planData = plan.planData;
   window.currentPlanId = plan._id || null;     // edits update THIS plan
   window.currentSnapshotId = plan.id || null;
+  if (typeof refreshGSDPublishState === 'function') refreshGSDPublishState();
 
   showWizard();
 

@@ -26,3 +26,9 @@ window.SUPABASE_ANON_KEY = 'sb_publishable_vv7Psg40Ge6BfLoh-v4V2g_Ms8tV9Hl';
 window.supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
   ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
+
+/**
+ * GSD Project Manager — publishing target. A published plan becomes readable
+ * by active members of this GSD workspace (see gsd-publish.js).
+ */
+window.GSD_WORKSPACE_ID = 'regency-shalina';

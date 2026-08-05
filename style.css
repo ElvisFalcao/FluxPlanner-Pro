@@ -312,3 +312,6 @@ body::before {
   /* Dashboard plan cards: allow narrower so they don't overflow tiny phones */
   #plansGrid{grid-template-columns:1fr!important;}
 }
+
+/* Publish to GSD — published state */
+#gsdPublishBtn.gsd-published { border-color: var(--accent-green, #34d399); color: var(--accent-green, #34d399); }
