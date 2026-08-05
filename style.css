@@ -315,3 +315,4 @@ body::before {
 
 /* Publish to GSD — published state */
 #gsdPublishBtn.gsd-published { border-color: var(--accent-green, #34d399); color: var(--accent-green, #34d399); }
+#gsdBrandDialog::backdrop{background:rgba(4,10,18,.65);backdrop-filter:blur(3px);}

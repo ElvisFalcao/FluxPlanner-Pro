@@ -123,11 +123,14 @@ function _askGSDBrand() {
     if (!dlg) {
       dlg = document.createElement('dialog');
       dlg.id = 'gsdBrandDialog';
-      dlg.style.cssText = 'border:0;border-radius:14px;padding:24px;max-width:320px;background:var(--card,#1c2733);color:inherit;';
+      // margin:auto restores the native centering that the app's CSS reset
+      // strips from <dialog>; the select gets explicit colors because the
+      // browser default is a white control, which drowns light theme text.
+      dlg.style.cssText = 'position:fixed;inset:0;margin:auto;width:min(320px,90vw);height:fit-content;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;background:var(--card,#1c2733);color:var(--text,#e5eef7);box-shadow:0 24px 70px rgba(0,0,0,.5);';
       dlg.innerHTML = `
         <h3 style="margin:0 0 6px;font-size:1rem;">Which brand is this plan for?</h3>
         <p style="margin:0 0 14px;font-size:.85rem;opacity:.7;">GSD validates every row against the brand's markets and platforms.</p>
-        <select id="gsdBrandSelect" style="width:100%;padding:9px;border-radius:8px;margin-bottom:14px;">
+        <select id="gsdBrandSelect" style="width:100%;padding:10px;border-radius:8px;margin-bottom:14px;background:#0f1722;color:#e5eef7;border:1px solid rgba(255,255,255,.18);font-size:.9rem;">
           <option value="">Choose a brand…</option>
           ${GSD_BRANDS.map((b) => `<option>${b}</option>`).join('')}
         </select>
